@@ -26,7 +26,6 @@ function formatEndTime(iso: string, mins: number): string {
 // TABS: Allar, Bíður svar (urgent!), Staðfest, Lokið
 const TABS = [
   { value: "",           label: "Allar" },
-  { value: "pending",    label: "🔴 Bíður svars", urgent: true },
   { value: "confirmed",  label: "Staðfest" },
   { value: "completed",  label: "Lokið" },
 ];

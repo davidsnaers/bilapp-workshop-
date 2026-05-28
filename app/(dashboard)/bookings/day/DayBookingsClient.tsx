@@ -4,6 +4,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useTheme } from "@/components/ThemeProvider";
 import type { BookingWorkshop } from "@/types/database";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -28,9 +29,11 @@ interface Props {
   bookings: (BookingWorkshop & { service?: { name_is: string } | null })[];
   workshopId: string;
   dateStr: string;
+  dayLabel: string;
+  bookingCount: number;
 }
 
-export default function DayBookingsClient({ bookings, workshopId, dateStr }: Props) {
+export default function DayBookingsClient({ bookings, workshopId, dateStr, dayLabel, bookingCount }: Props) {
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
   const { theme } = useTheme();
@@ -71,68 +74,104 @@ export default function DayBookingsClient({ bookings, workshopId, dateStr }: Pro
   };
 
   const getStatusStyle = (status: string) => {
-    if (status === "pending")   return { bg: isDark ? "rgba(239,68,68,0.12)"  : "#fef2f2", border: isDark ? "rgba(239,68,68,0.4)"  : "#fecaca", color: isDark ? "#fca5a5" : "#991b1b" };
-    if (status === "confirmed") return { bg: isDark ? "rgba(34,197,94,0.08)"  : "#f0fdf4", border: isDark ? "rgba(34,197,94,0.3)"  : "#86efac", color: isDark ? "#86efac" : "#166534" };
-    if (status === "no_show")   return { bg: isDark ? "rgba(249,115,22,0.1)"  : "#fff7ed", border: isDark ? "rgba(249,115,22,0.3)" : "#fed7aa", color: isDark ? "#fdba74" : "#9a3412" };
+    if (status === "pending")   return { bg: isDark ? "rgba(239,68,68,0.12)" : "#fef2f2", border: isDark ? "rgba(239,68,68,0.4)" : "#fecaca", color: isDark ? "#fca5a5" : "#991b1b" };
+    if (status === "confirmed") return { bg: isDark ? "rgba(34,197,94,0.08)" : "#f0fdf4", border: isDark ? "rgba(34,197,94,0.3)" : "#86efac", color: isDark ? "#86efac" : "#166534" };
+    if (status === "no_show")   return { bg: isDark ? "rgba(249,115,22,0.1)" : "#fff7ed", border: isDark ? "rgba(249,115,22,0.3)" : "#fed7aa", color: isDark ? "#fdba74" : "#9a3412" };
     return { bg: subsurf, border, color: muted };
   };
 
-  if (bookings.length === 0) {
-    return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: bg }}>
-        <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: 40, margin: "0 0 10px" }}>📅</p>
-          <p style={{ fontWeight: 700, color: text, fontSize: 16, margin: 0 }}>Engar bókanir þennan dag</p>
-          <p style={{ fontSize: 13, color: muted, margin: "4px 0 0" }}>Þennan dag eru engar bókanir skráðar</p>
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: bg, color: text }}>
+
+      {/* Header — themed */}
+      <div style={{ padding: "16px 24px", borderBottom: `1px solid ${border}`, background: surface, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <Link href="/calendar" style={{ fontSize: 12, fontWeight: 600, color: amber, textDecoration: "none", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+            ← Til baka í dagatal
+          </Link>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: text }}>{dayLabel}</h1>
+          <p style={{ fontSize: 13, color: muted, margin: "2px 0 0" }}>
+            {bookingCount} bókun{bookingCount !== 1 ? "ar" : ""}
+          </p>
+        </div>
+
+        {/* Prev / Next day nav */}
+        <div style={{ display: "flex", gap: 6 }}>
+          {(() => {
+            const d = new Date(dateStr);
+            d.setDate(d.getDate() - 1);
+            const prev = d.toISOString().split("T")[0];
+            return (
+              <Link href={`/bookings/day?date=${prev}`} style={{ width: 32, height: 32, borderRadius: 10, border: `1px solid ${border}`, background: amberBg, color: text, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>‹</Link>
+            );
+          })()}
+          {(() => {
+            const d = new Date(dateStr);
+            d.setDate(d.getDate() + 1);
+            const next = d.toISOString().split("T")[0];
+            return (
+              <Link href={`/bookings/day?date=${next}`} style={{ width: 32, height: 32, borderRadius: 10, border: `1px solid ${border}`, background: amberBg, color: text, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>›</Link>
+            );
+          })()}
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px", background: bg, display: "flex", flexDirection: "column", gap: 10 }}>
-      {bookings.map(booking => {
-        const ss = getStatusStyle(booking.status);
-        return (
-          <button key={booking.id} onClick={() => { setSelected(booking); setShowDeclineInput(false); setDeclineReason(""); }}
-            style={{ textAlign: "left", background: surface, borderRadius: 16, border: `1.5px solid ${booking.status === "pending" ? (isDark ? "rgba(239,68,68,0.4)" : "#fecaca") : border}`, padding: 0, cursor: "pointer", color: text, width: "100%", overflow: "hidden" }}>
+      {/* Empty */}
+      {bookings.length === 0 && (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ textAlign: "center" }}>
+            <p style={{ fontSize: 40, margin: "0 0 10px" }}>📅</p>
+            <p style={{ fontWeight: 700, color: text, fontSize: 16, margin: 0 }}>Engar bókanir þennan dag</p>
+            <p style={{ fontSize: 13, color: muted, margin: "4px 0 0" }}>Þennan dag eru engar bókanir skráðar</p>
+          </div>
+        </div>
+      )}
 
-            {/* Time bar */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: isDark ? "#252525" : "#FFF8F0", borderBottom: `1px solid ${border}` }}>
-              <div style={{ textAlign: "center", minWidth: 50 }}>
-                <p style={{ fontSize: 18, fontWeight: 700, color: amber, margin: 0 }}>{formatTime(booking.start_time)}</p>
-                <p style={{ fontSize: 11, color: muted, margin: 0 }}>–{formatEndTime(booking.start_time, booking.duration_minutes)}</p>
-              </div>
-              <div style={{ width: 2, height: 32, background: isDark ? "#333" : "#e8dcc8", borderRadius: 999 }} />
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 15, fontWeight: 700, color: text, margin: 0 }}>{booking.customer_name ?? "Óþekktur viðskiptavinur"}</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", fontSize: 12, color: muted, marginTop: 2 }}>
-                  {booking.customer_plate && <span>🚗 {booking.customer_plate}</span>}
-                  {booking.customer_phone && <span>📞 {booking.customer_phone}</span>}
+      {/* List */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {bookings.map(booking => {
+          const ss = getStatusStyle(booking.status);
+          return (
+            <button key={booking.id} onClick={() => { setSelected(booking); setShowDeclineInput(false); setDeclineReason(""); }}
+              style={{ textAlign: "left", background: surface, borderRadius: 16, border: `1.5px solid ${booking.status === "pending" ? (isDark ? "rgba(239,68,68,0.4)" : "#fecaca") : border}`, padding: 0, cursor: "pointer", color: text, width: "100%", overflow: "hidden" }}>
+
+              {/* Time bar */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: isDark ? "#252525" : "#FFF8F0", borderBottom: `1px solid ${border}` }}>
+                <div style={{ textAlign: "center", minWidth: 52 }}>
+                  <p style={{ fontSize: 18, fontWeight: 700, color: amber, margin: 0 }}>{formatTime(booking.start_time)}</p>
+                  <p style={{ fontSize: 11, color: muted, margin: 0 }}>–{formatEndTime(booking.start_time, booking.duration_minutes)}</p>
+                </div>
+                <div style={{ width: 2, height: 32, background: isDark ? "#333" : "#e8dcc8", borderRadius: 999 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: text, margin: 0 }}>{booking.customer_name ?? "Óþekktur viðskiptavinur"}</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", fontSize: 12, color: muted, marginTop: 2 }}>
+                    {booking.customer_plate && <span>🚗 {booking.customer_plate}</span>}
+                    {booking.customer_phone && <span>📞 {booking.customer_phone}</span>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                  <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: ss.bg, border: `1px solid ${ss.border}`, color: ss.color }}>
+                    {STATUS_LABEL[booking.status] ?? booking.status}
+                  </span>
+                  <span style={{ fontSize: 11, color: muted }}>{booking.duration_minutes} mín</span>
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: ss.bg, border: `1px solid ${ss.border}`, color: ss.color }}>
-                  {STATUS_LABEL[booking.status] ?? booking.status}
-                </span>
-                <span style={{ fontSize: 11, color: muted }}>{booking.duration_minutes} mín</span>
-              </div>
-            </div>
 
-            {/* Service + notes */}
-            <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-              {(booking as any).service?.name_is || booking.service_label ? (
-                <span style={{ padding: "3px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: amberBg, border: `1px solid ${isDark ? "rgba(232,168,0,0.3)" : "#fde68a"}`, color: isDark ? amber : "#7a4f00" }}>
-                  {(booking as any).service?.name_is ?? booking.service_label}
-                </span>
-              ) : null}
-              {booking.customer_notes && (
-                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>"{booking.customer_notes}"</p>
-              )}
-            </div>
-          </button>
-        );
-      })}
+              {/* Service + notes */}
+              <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                {((booking as any).service?.name_is || booking.service_label) && (
+                  <span style={{ padding: "3px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: amberBg, border: `1px solid ${isDark ? "rgba(232,168,0,0.3)" : "#fde68a"}`, color: isDark ? amber : "#7a4f00" }}>
+                    {(booking as any).service?.name_is ?? booking.service_label}
+                  </span>
+                )}
+                {booking.customer_notes && (
+                  <p style={{ fontSize: 12, color: muted, fontStyle: "italic", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>"{booking.customer_notes}"</p>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Detail modal */}
       {selected && (
@@ -156,7 +195,7 @@ export default function DayBookingsClient({ bookings, workshopId, dateStr }: Pro
                   (selected.customer_car_make || selected.customer_car_model) ? { label: "Bíll", value: [selected.customer_car_make, selected.customer_car_model, selected.customer_car_year].filter(Boolean).join(" ") } : null,
                   { label: "Þjónusta", value: (selected as any).service?.name_is ?? selected.service_label ?? "—" },
                 ].filter((x): x is { label: string; value: string } => Boolean(x)).map(({ label, value }) => (
-                  <div key={label} style={{ background: isDark ? "#2a2a2a" : amberBg, borderRadius: 10, padding: "8px 10px", border: `1px solid ${isDark ? "#333" : "#fde68a44"}` }}>
+                  <div key={label} style={{ background: amberBg, borderRadius: 10, padding: "8px 10px", border: `1px solid ${isDark ? "rgba(232,168,0,0.2)" : "#fde68a44"}` }}>
                     <p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 2px" }}>{label}</p>
                     <p style={{ fontSize: 13, fontWeight: 600, color: text, margin: 0 }}>{value}</p>
                   </div>
