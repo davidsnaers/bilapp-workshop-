@@ -14,3 +14,7 @@ CREATE POLICY "bookings_workshop_availability_read" ON public.bookings_workshop
 -- Allow app users to read workshop_blocks for availability
 CREATE POLICY "workshop_blocks_read_authenticated" ON public.workshop_blocks
   FOR SELECT USING (auth.uid() IS NOT NULL);
+
+-- Add custom duration override to workshop_services
+ALTER TABLE public.workshop_services 
+  ADD COLUMN IF NOT EXISTS custom_duration_minutes integer;

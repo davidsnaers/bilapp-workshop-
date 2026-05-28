@@ -267,20 +267,13 @@ export default function SettingsClient({ workshop, hours, blocks, workshopServic
 
           {/* SERVICES */}
           {tab === "services" && (
-            <div style={{ background: surface, borderRadius: 16, border: `1px solid ${border}`, padding: "20px", display: "flex", flexDirection: "column", gap: 10 }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: text, margin: "0 0 4px" }}>Þjónustur</h2>
-              <p style={{ fontSize: 13, color: muted, margin: "0 0 6px" }}>Veldu þær þjónustur sem verkstæðið þitt býður upp á.</p>
-              {allServices.map((s: any) => {
-                const active = activeServiceIds.includes(s.id);
-                return (
-                  <button key={s.id} onClick={() => setActiveServiceIds(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id])} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderRadius: 10, cursor: "pointer", textAlign: "left", border: `1px solid ${active ? amber : border}`, background: active ? (isDark ? "rgba(232,168,0,0.1)" : "#fffbeb") : subsurf, color: active ? amber : text }}>
-                    <span style={{ fontSize: 13, fontWeight: active ? 700 : 500 }}>{active ? "✓ " : ""}{s.name_is}</span>
-                    <span style={{ fontSize: 11, color: muted }}>{s.default_duration_minutes} mín</span>
-                  </button>
-                );
-              })}
-              <button onClick={saveServices} disabled={saving || activeServiceIds.length === 0} style={{ ...btnPrimary, marginTop: 4 }}>{saving ? "Vista..." : "Vista þjónustur"}</button>
-            </div>
+            <ServicesTab
+              surface={surface} border={border} text={text} muted={muted}
+              subsurf={subsurf} amber={amber} isDark={isDark} btnPrimary={btnPrimary}
+              allServices={allServices} workshopId={workshop.id}
+              workshopServices={workshopServices} saving={saving} setSaving={setSaving}
+              showFeedback={showFeedback} router={router} inputStyle={inputStyle}
+            />
           )}
 
           {/* BLOCKS */}
@@ -357,6 +350,173 @@ function HourRow({ h, isDark, border, subsurf, text, muted, amber, updateHour }:
             style={{ padding: "5px 8px", borderRadius: 8, border: `1px solid ${border}`, background: isDark ? "#1e1e1e" : "white", color: text, fontSize: 12, outline: "none" }} />
         </>
       )}
+    </div>
+  );
+}
+
+// ── Services tab with editable durations ─────────────────────
+function ServicesTab({ surface, border, text, muted, subsurf, amber, isDark, btnPrimary, allServices, workshopId, workshopServices, saving, setSaving, showFeedback, router, inputStyle }: any) {
+  const supabase = createSupabaseBrowserClient();
+
+  // Build initial state: service_id -> { active, duration_minutes }
+  const buildInitial = () => {
+    const map: Record<string, { active: boolean; duration: number; name: string }> = {};
+    allServices.forEach((s: any) => {
+      const ws = workshopServices.find((w: any) => w.service?.id === s.id);
+      map[s.id] = {
+        active: !!ws?.is_active,
+        duration: ws?.custom_duration_minutes ?? s.default_duration_minutes,
+        name: s.name_is,
+      };
+    });
+    return map;
+  };
+
+  const [serviceMap, setServiceMap] = useState<Record<string, { active: boolean; duration: number; name: string }>>(buildInitial);
+  const [newServiceName, setNewServiceName] = useState("");
+  const [newServiceDuration, setNewServiceDuration] = useState(60);
+  const [addingNew, setAddingNew] = useState(false);
+  const [localSaving, setLocalSaving] = useState(false);
+
+  const toggleService = (id: string) => {
+    setServiceMap(prev => ({ ...prev, [id]: { ...prev[id], active: !prev[id].active } }));
+  };
+
+  const setDuration = (id: string, duration: number) => {
+    setServiceMap(prev => ({ ...prev, [id]: { ...prev[id], duration } }));
+  };
+
+  const handleSave = async () => {
+    setLocalSaving(true);
+    try {
+      // Delete existing workshop services
+      await (supabase as any).from("workshop_services").delete().eq("workshop_id", workshopId);
+
+      // Re-insert active ones with custom duration
+      const toInsert = Object.entries(serviceMap)
+        .filter(([_, v]) => v.active)
+        .map(([serviceId, v]) => ({
+          workshop_id: workshopId,
+          service_id: serviceId,
+          is_active: true,
+          custom_duration_minutes: v.duration,
+        }));
+
+      if (toInsert.length > 0) {
+        await (supabase as any).from("workshop_services").insert(toInsert);
+      }
+
+      showFeedback("Þjónustur vistaðar ✓");
+      router.refresh();
+    } catch (e: any) {
+      showFeedback(e?.message ?? "Villa", false);
+    } finally {
+      setLocalSaving(false);
+    }
+  };
+
+  const handleAddNew = async () => {
+    if (!newServiceName.trim()) return;
+    setLocalSaving(true);
+    try {
+      // Create new service in services table
+      const { data: newService, error } = await (supabase as any)
+        .from("services")
+        .insert({ name_is: newServiceName.trim(), name_en: newServiceName.trim(), default_duration_minutes: newServiceDuration, is_active: true })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add to workshop
+      await (supabase as any).from("workshop_services").insert({
+        workshop_id: workshopId, service_id: newService.id,
+        is_active: true, custom_duration_minutes: newServiceDuration,
+      });
+
+      setNewServiceName("");
+      setNewServiceDuration(60);
+      setAddingNew(false);
+      showFeedback("Þjónusta bætt við ✓");
+      router.refresh();
+    } catch (e: any) {
+      showFeedback(e?.message ?? "Villa", false);
+    } finally {
+      setLocalSaving(false);
+    }
+  };
+
+  const DURATION_OPTIONS = [15,30,45,60,90,120,150,180,240,300,360];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ background: surface, borderRadius: 16, border: `1px solid ${border}`, padding: "20px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <div>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: text, margin: 0 }}>Þjónustur</h2>
+            <p style={{ fontSize: 13, color: muted, margin: "2px 0 0" }}>Veldu þjónustur og stilltu tímalengd</p>
+          </div>
+          <button onClick={() => setAddingNew(true)} style={{ padding: "7px 14px", borderRadius: 10, border: `1px solid ${border}`, background: subsurf, color: text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            + Bæta við
+          </button>
+        </div>
+
+        {/* Add new service form */}
+        {addingNew && (
+          <div style={{ background: isDark ? "rgba(232,168,0,0.08)" : "#fffbeb", border: `1px solid ${isDark ? "rgba(232,168,0,0.3)" : "#fde68a"}`, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: amber, margin: 0, textTransform: "uppercase", letterSpacing: "0.5px" }}>Ný þjónusta</p>
+            <input
+              type="text" value={newServiceName} onChange={e => setNewServiceName(e.target.value)}
+              placeholder="Heiti þjónustu" style={{ ...inputStyle, marginBottom: 0 }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: muted, flexShrink: 0 }}>Tímalengd:</label>
+              <select value={newServiceDuration} onChange={e => setNewServiceDuration(Number(e.target.value))}
+                style={{ ...inputStyle, marginBottom: 0, flex: 1, cursor: "pointer" }}>
+                {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d} mín{d >= 60 ? ` (${Math.floor(d/60)} klst${d%60>0?` ${d%60} mín`:""})` : ""}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleAddNew} disabled={!newServiceName.trim() || localSaving}
+                style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "none", background: amber, color: "#111", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                {localSaving ? "Vista..." : "Bæta við"}
+              </button>
+              <button onClick={() => { setAddingNew(false); setNewServiceName(""); }}
+                style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${border}`, background: "transparent", color: muted, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                Hætta við
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Service list */}
+        {Object.entries(serviceMap).map(([id, s]) => (
+          <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${s.active ? amber : border}`, background: s.active ? (isDark ? "rgba(232,168,0,0.08)" : "#fffbeb") : subsurf }}>
+            {/* Toggle */}
+            <button onClick={() => toggleService(id)} style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${s.active ? amber : border}`, background: s.active ? amber : "transparent", color: "#111", fontSize: 12, fontWeight: 900, cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {s.active ? "✓" : ""}
+            </button>
+
+            {/* Name */}
+            <span style={{ flex: 1, fontSize: 13, fontWeight: s.active ? 700 : 500, color: s.active ? (isDark ? amber : "#7a4f00") : muted }}>
+              {s.name}
+            </span>
+
+            {/* Duration selector — only shown when active */}
+            {s.active && (
+              <select value={s.duration} onChange={e => setDuration(id, Number(e.target.value))}
+                style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${border}`, background: isDark ? "#1e1e1e" : "white", color: text, fontSize: 12, fontWeight: 700, cursor: "pointer", outline: "none" }}>
+                {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d} mín</option>)}
+              </select>
+            )}
+          </div>
+        ))}
+
+        <button onClick={handleSave} disabled={localSaving}
+          style={{ ...btnPrimary, marginTop: 4 }}>
+          {localSaving ? "Vista..." : "Vista þjónustur"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -64,9 +64,11 @@ export default function MonthBubble({ bookings, workshopHours, maxCarsPerDay, bo
       const dow = date.getDay(); // 0=Sun
       const hours = workshopHours.find(h => h.day_of_week === dow);
 
+      const dateKey = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
       const dayBookings = bookings.filter(b => {
         const bd = new Date(b.start_time);
-        return bd.getFullYear() === viewYear && bd.getMonth() === viewMonth && bd.getDate() === d
+        const bdKey = `${bd.getFullYear()}-${String(bd.getMonth()+1).padStart(2,"0")}-${String(bd.getDate()).padStart(2,"0")}`;
+        return bdKey === dateKey
           && !["declined","cancelled_by_user","cancelled_by_workshop","auto_cancelled"].includes(b.status);
       });
 
