@@ -94,7 +94,7 @@ export default function BookingPageClient({
     if (!h?.open_time || !h?.close_time) return [];
     const [oh,om] = h.open_time.split(":").map(Number);
     const [ch,cm] = h.close_time.split(":").map(Number);
-    const dur = selectedService?.default_duration_minutes ?? 60;
+    const dur = selectedService?.custom_duration_minutes ?? selectedService?.default_duration_minutes ?? 60;
     const interval = Math.ceil(Math.max(60,dur)/60)*60;
     const slots: {h:number;m:number}[] = [];
     const now = new Date();

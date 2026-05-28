@@ -10,6 +10,14 @@ import { useState } from "react";
 
 const MONTHS  = ["jan","feb","mar","apr","maí","jún","júl","ágú","sep","okt","nóv","des"];
 
+function formatDuration(mins: number): string {
+  if (mins < 60) return `${mins} mín`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (m === 0) return `${h} klst`;
+  return `${h} klst ${m} mín`;
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
@@ -153,7 +161,7 @@ export default function DayBookingsClient({ bookings, workshopId, dateStr, dayLa
                   <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: ss.bg, border: `1px solid ${ss.border}`, color: ss.color }}>
                     {STATUS_LABEL[booking.status] ?? booking.status}
                   </span>
-                  <span style={{ fontSize: 11, color: muted }}>{booking.duration_minutes} mín</span>
+                  <span style={{ fontSize: 11, color: muted }}>{formatDuration(booking.duration_minutes)}</span>
                 </div>
               </div>
 
@@ -189,7 +197,7 @@ export default function DayBookingsClient({ bookings, workshopId, dateStr, dayLa
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
                   { label: "Tími", value: `${formatTime(selected.start_time)} – ${formatEndTime(selected.start_time, selected.duration_minutes)}` },
-                  { label: "Lengd", value: `${selected.duration_minutes} mín` },
+                  { label: "Lengd", value: `${formatDuration(selected.duration_minutes)}` },
                   selected.customer_phone ? { label: "Sími", value: selected.customer_phone } : null,
                   selected.customer_plate ? { label: "Bílnúmer", value: selected.customer_plate } : null,
                   (selected.customer_car_make || selected.customer_car_model) ? { label: "Bíll", value: [selected.customer_car_make, selected.customer_car_model, selected.customer_car_year].filter(Boolean).join(" ") } : null,

@@ -17,6 +17,14 @@ interface Props {
 const HOURS = Array.from({length:14},(_,i)=>i+7); // 07–20
 const MINUTES = [0,15,30,45];
 
+function formatDuration(mins: number): string {
+  if (mins < 60) return `${mins} mín`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (m === 0) return `${h} klst`;
+  return `${h} klst ${m} mín`;
+}
+
 export default function AddBookingModal({ workshop, defaultDate, services, onClose, onSaved }: Props) {
   const supabase = createSupabaseBrowserClient();
   const { theme } = useTheme();
@@ -145,15 +153,15 @@ export default function AddBookingModal({ workshop, defaultDate, services, onClo
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
                 <select value={durationHours} onChange={e=>setDurationHours(Number(e.target.value))} style={selectStyle}>
-                  {Array.from({length:9},(_,i)=>i).map(h=><option key={h} value={h}>{h} klst</option>)}
+                  {Array.from({length:9},(_,i)=>i).map(h=><option key={h} value={h}>{h === 0 ? '0 klst' : h === 1 ? '1 klst' : `${h} klst`}</option>)}
                 </select>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:4}}>
                 <select value={durationMins} onChange={e=>setDurationMins(Number(e.target.value))} style={selectStyle}>
-                  {MINUTES.map(m=><option key={m} value={m}>{pad(m)} mín</option>)}
+                  {MINUTES.map(m=><option key={m} value={m}>{m === 0 ? '0 mín' : `${m} mín`}</option>)}
                 </select>
               </div>
-              <span style={{color:amber,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{totalDurationMins} mín</span>
+              <span style={{color:amber,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{formatDuration(totalDurationMins)}</span>
             </div>
           </div>
 

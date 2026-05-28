@@ -22,7 +22,7 @@ export default async function PublicBookingPage({
 
   const { data: services } = await (supabase as any)
     .from("workshop_services")
-    .select("*, service:service_id(id, name_is, name_en, default_duration_minutes)")
+    .select("*, custom_duration_minutes, service:service_id(id, name_is, name_en, default_duration_minutes)")
     .eq("workshop_id", workshopId)
     .eq("is_active", true);
 
@@ -35,7 +35,13 @@ export default async function PublicBookingPage({
   return (
     <BookingPageClient
       workshop={workshop}
-      services={(services ?? []).filter((s: any) => s.service)}
+      services={(services ?? []).filter((s: any) => s.service).map((s: any) => ({
+        ...s,
+        service: {
+          ...s.service,
+          default_duration_minutes: s.custom_duration_minutes ?? s.service.default_duration_minutes,
+        }
+      }))}
       hours={hours ?? []}
     />
   );

@@ -203,7 +203,7 @@ export default function BookingsClient({ bookings, workshopId, activeStatus }: P
                     <p style={{ fontSize: 14, fontWeight: 700, color: amber, margin: "2px 0 0" }}>
                       {String(startTime.getHours()).padStart(2,"0")}:{String(startTime.getMinutes()).padStart(2,"0")} – {endTimeStr}
                     </p>
-                    <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{booking.duration_minutes} mín</p>
+                    <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{formatDuration(booking.duration_minutes)}</p>
                   </div>
                 </div>
 
@@ -239,7 +239,7 @@ export default function BookingsClient({ bookings, workshopId, activeStatus }: P
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
                   { label: "Tími", value: `${String(new Date(selected.start_time).getHours()).padStart(2,"0")}:${String(new Date(selected.start_time).getMinutes()).padStart(2,"0")} – ${formatEndTime(selected.start_time, selected.duration_minutes)}` },
-                  { label: "Lengd", value: `${selected.duration_minutes} mín` },
+                  { label: "Lengd", value: `${formatDuration(selected.duration_minutes)}` },
                   selected.customer_phone ? { label: "Sími", value: selected.customer_phone } : null,
                   selected.customer_plate ? { label: "Bílnúmer", value: selected.customer_plate } : null,
                   (selected.customer_car_make || selected.customer_car_model) ? { label: "Bíll", value: [selected.customer_car_make, selected.customer_car_model, selected.customer_car_year].filter(Boolean).join(" ") } : null,
