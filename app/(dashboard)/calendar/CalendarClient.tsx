@@ -474,7 +474,7 @@ export default function CalendarClient({ workshop, bookings, services, workshopH
                   selectedBooking.customer_plate ? { label: "Bílnúmer", value: selectedBooking.customer_plate } : null,
                   (selectedBooking.customer_car_make || selectedBooking.customer_car_model) ? { label: "Bíll", value: [selectedBooking.customer_car_make, selectedBooking.customer_car_model, selectedBooking.customer_car_year].filter(Boolean).join(" ") } : null,
                   { label: "Þjónusta", value: (selectedBooking as any).service?.name_is ?? selectedBooking.service_label ?? "—" },
-                ].filter(Boolean).map(({ label, value }) => (
+                ].filter((x): x is { label: string; value: string } => Boolean(x)).map(({ label, value }) => (
                   <div key={label} style={{ background: isDark ? "#333" : "#f9fafb", borderRadius: 10, padding: "8px 10px" }}>
                     <p style={{ fontSize: 10, fontWeight: 700, color: isDark ? "#666" : "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 2px" }}>{label}</p>
                     <p style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#e4e4e4" : "#111", margin: 0 }}>{value}</p>

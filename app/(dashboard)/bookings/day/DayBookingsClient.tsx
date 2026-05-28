@@ -163,7 +163,7 @@ export default function DayBookingsClient({ bookings, workshopId, dateStr }: Pro
                   selected.customer_plate ? { label: "Bílnúmer", value: selected.customer_plate } : null,
                   (selected.customer_car_make || selected.customer_car_model) ? { label: "Bíll", value: [selected.customer_car_make, selected.customer_car_model, selected.customer_car_year].filter(Boolean).join(" ") } : null,
                   { label: "Þjónusta", value: (selected as any).service?.name_is ?? selected.service_label ?? "—" },
-                ].filter(Boolean).map(({ label, value }) => (
+                ].filter((x): x is { label: string; value: string } => Boolean(x)).map(({ label, value }) => (
                   <div key={label} className="bg-gray-50 rounded-xl p-3">
                     <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>
                     <p className="font-semibold text-gray-900 text-sm">{value}</p>

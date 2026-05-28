@@ -278,7 +278,7 @@ export default function BookingsClient({ bookings, workshopId, activeStatus }: P
                   selected.customer_plate ? { label: "Bílnúmer", value: selected.customer_plate } : null,
                   (selected.customer_car_make || selected.customer_car_model) ? { label: "Bíll", value: [selected.customer_car_make, selected.customer_car_model, selected.customer_car_year].filter(Boolean).join(" ") } : null,
                   { label: "Þjónusta", value: (selected as any).service?.name_is ?? selected.service_label ?? "—" },
-                ].filter(Boolean).map(({ label, value }) => (
+                ].filter((x): x is { label: string; value: string } => Boolean(x)).map(({ label, value }) => (
                   <div key={label} style={{ background: subsurf, borderRadius: 10, padding: "8px 10px" }}>
                     <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 2px" }}>{label}</p>
                     <p style={{ fontSize: 13, fontWeight: 600, color: text, margin: 0 }}>{value}</p>
