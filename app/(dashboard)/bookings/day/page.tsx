@@ -16,7 +16,7 @@ export default async function DayBookingsPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: workshop } = await supabase
+  const { data: workshop } = await (supabase as any)
     .from("workshops")
     .select("*")
     .eq("owner_id", user.id)

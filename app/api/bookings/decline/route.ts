@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       console.log("[decline] SMS sent:", sent);
     }
 
-    await supabase.from("booking_events" as any).insert({
+    await (supabase as any).from("booking_events" as any).insert({
       workshop_booking_id: booking_id,
       event_type: "declined",
       actor_type: "workshop",

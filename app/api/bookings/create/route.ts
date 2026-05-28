@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Log notification
-    await supabase.from("notifications_log" as any).insert({
+    await (supabase as any).from("notifications_log" as any).insert({
       booking_id: booking.id,
       recipient_type: "workshop",
       channel: "sms",

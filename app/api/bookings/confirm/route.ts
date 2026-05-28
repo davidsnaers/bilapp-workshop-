@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Log event
-    await supabase.from("booking_events" as any).insert({
+    await (supabase as any).from("booking_events" as any).insert({
       workshop_booking_id: booking_id,
       event_type: "confirmed",
       actor_type: "workshop",

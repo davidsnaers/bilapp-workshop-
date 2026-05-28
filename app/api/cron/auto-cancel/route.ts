@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
         .eq("id", booking.id);
 
       // Log event
-      await supabase.from("booking_events" as any).insert({
+      await (supabase as any).from("booking_events" as any).insert({
         workshop_booking_id: booking.id,
         event_type: "auto_cancelled",
         actor_type: "system",
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Log notification
-      await supabase.from("notifications_log" as any).insert({
+      await (supabase as any).from("notifications_log" as any).insert({
         booking_id: booking.id,
         recipient_type: "customer",
         channel: "sms",
