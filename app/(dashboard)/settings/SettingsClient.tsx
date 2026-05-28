@@ -362,7 +362,7 @@ function ServicesTab({ surface, border, text, muted, subsurf, amber, isDark, btn
   const buildInitial = () => {
     const map: Record<string, { active: boolean; duration: number; name: string }> = {};
     allServices.forEach((s: any) => {
-      const ws = workshopServices.find((w: any) => w.service?.id === s.id);
+      const ws = workshopServices.find((w: any) => w.service?.id === s.id || w.service_id === s.id);
       map[s.id] = {
         active: !!ws?.is_active,
         duration: ws?.custom_duration_minutes ?? s.default_duration_minutes,
@@ -448,6 +448,14 @@ function ServicesTab({ surface, border, text, muted, subsurf, amber, isDark, btn
 
   const DURATION_OPTIONS = [15,30,45,60,90,120,150,180,240,300,360];
 
+  const formatDuration = (mins: number) => {
+    if (mins < 60) return `${mins} mín`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (m === 0) return `${h} klst`;
+    return `${h} klst ${m} mín`;
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ background: surface, borderRadius: 16, border: `1px solid ${border}`, padding: "20px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -473,7 +481,7 @@ function ServicesTab({ surface, border, text, muted, subsurf, amber, isDark, btn
               <label style={{ fontSize: 12, fontWeight: 700, color: muted, flexShrink: 0 }}>Tímalengd:</label>
               <select value={newServiceDuration} onChange={e => setNewServiceDuration(Number(e.target.value))}
                 style={{ ...inputStyle, marginBottom: 0, flex: 1, cursor: "pointer" }}>
-                {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d} mín{d >= 60 ? ` (${Math.floor(d/60)} klst${d%60>0?` ${d%60} mín`:""})` : ""}</option>)}
+                {DURATION_OPTIONS.map(d => <option key={d} value={d}>{formatDuration(d)}</option>)}
               </select>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -506,7 +514,7 @@ function ServicesTab({ surface, border, text, muted, subsurf, amber, isDark, btn
             {s.active && (
               <select value={s.duration} onChange={e => setDuration(id, Number(e.target.value))}
                 style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${border}`, background: isDark ? "#1e1e1e" : "white", color: text, fontSize: 12, fontWeight: 700, cursor: "pointer", outline: "none" }}>
-                {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d} mín</option>)}
+                {DURATION_OPTIONS.map(d => <option key={d} value={d}>{formatDuration(d)}</option>)}
               </select>
             )}
           </div>

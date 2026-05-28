@@ -31,7 +31,7 @@ export default async function SettingsPage() {
 
   const { data: workshopServices } = await (supabase as any)
     .from("workshop_services")
-    .select("*, service:service_id(id, name_is, default_duration_minutes)")
+    .select("*, custom_duration_minutes, service:service_id(id, name_is, default_duration_minutes)")
     .eq("workshop_id", workshop.id);
 
   const { data: allServices } = await (supabase as any)
