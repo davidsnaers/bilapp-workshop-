@@ -34,13 +34,21 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isLoginPage = pathname === "/login";
+  // Public routes — no auth needed
+  const isPublic =
+    pathname.startsWith("/book/") ||
+    pathname.startsWith("/api/public/");
+
   const isProtected =
-    pathname === "/" ||
-    pathname.startsWith("/calendar") ||
-    pathname.startsWith("/bookings") ||
-    pathname.startsWith("/settings") ||
-    pathname.startsWith("/customers") ||
-    pathname.startsWith("/onboarding");
+    !isPublic && (
+      pathname === "/" ||
+      pathname.startsWith("/calendar") ||
+      pathname.startsWith("/bookings") ||
+      pathname.startsWith("/settings") ||
+      pathname.startsWith("/customers") ||
+      pathname.startsWith("/pending") ||
+      pathname.startsWith("/onboarding")
+    );
 
   if (!user && isProtected) {
     return NextResponse.redirect(new URL("/login", request.url));

@@ -4,37 +4,95 @@ import { calculatePendingUntil } from "@/lib/pending-until";
 import { sendSMS, SMS_TEMPLATES } from "@/lib/sms";
 import { NextRequest, NextResponse } from "next/server";
 
+const MONTHS_SHORT = ["jan","feb","mar","apr","maí","jún","júl","ágú","sep","okt","nóv","des"];
+const WEEKDAYS_SHORT = ["Sun","Mán","Þri","Mið","Fim","Fös","Lau"];
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${WEEKDAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]} kl. ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    const {
+      workshop_id, user_id, car_id,
+      service_id, service_label,
+      customer_name, customer_phone, customer_plate,
+      customer_car_make, customer_car_model, customer_car_year,
+      start_time, duration_minutes,
+      source, customer_notes,
+    } = body;
+
+    if (!workshop_id) return NextResponse.json({ error: "workshop_id required" }, { status: 400 });
+    if (!start_time)  return NextResponse.json({ error: "start_time required" },  { status: 400 });
+
     const supabase = await createSupabaseServiceClient();
 
-    // Get workshop hours for pending_until calculation
-    const { data: hours } = await supabase
-      .from("workshop_hours" as any)
+    // Check for double booking — same workshop, same time slot, not cancelled
+    const slotStart = new Date(start_time);
+    const slotEnd   = new Date(slotStart.getTime() + (duration_minutes ?? 60) * 60000);
+
+    const { data: existing } = await (supabase as any)
+      .from("bookings_workshop")
+      .select("id, start_time, duration_minutes")
+      .eq("workshop_id", workshop_id)
+      .not("status", "in", '("declined","cancelled_by_user","cancelled_by_workshop","auto_cancelled")')
+      .gte("start_time", new Date(slotStart.getTime() - (duration_minutes ?? 60) * 60000).toISOString())
+      .lte("start_time", slotEnd.toISOString());
+
+    // Check overlap
+    const overlap = (existing ?? []).some((b: any) => {
+      const bs = new Date(b.start_time).getTime();
+      const be = bs + b.duration_minutes * 60000;
+      return slotStart.getTime() < be && slotEnd.getTime() > bs;
+    });
+
+    if (overlap) {
+      return NextResponse.json({ error: "Þessi tími er þegar bókaður" }, { status: 409 });
+    }
+
+    // Get workshop hours for pending_until
+    const { data: hours } = await (supabase as any)
+      .from("workshop_hours")
       .select("*")
-      .eq("workshop_id", body.workshop_id);
+      .eq("workshop_id", workshop_id);
 
     const pendingUntil = calculatePendingUntil(hours ?? []);
 
-    // Create booking
-    const { data: booking, error } = await supabase
-      .from("bookings_workshop" as any)
+    // Create booking — only whitelist safe fields
+    const { data: booking, error } = await (supabase as any)
+      .from("bookings_workshop")
       .insert({
-        ...body,
-        status: "pending",
-        pending_until: pendingUntil.toISOString(),
+        workshop_id,
+        user_id:            user_id ?? null,
+        car_id:             car_id ?? null,
+        service_id:         service_id ?? null,
+        service_label:      service_label ?? null,
+        customer_name:      customer_name ?? null,
+        customer_phone:     customer_phone ?? null,
+        customer_plate:     customer_plate ?? null,
+        customer_car_make:  customer_car_make ?? null,
+        customer_car_model: customer_car_model ?? null,
+        customer_car_year:  customer_car_year ?? null,
+        start_time,
+        duration_minutes:   duration_minutes ?? 60,
+        status:             "pending",
+        source:             source ?? "web",
+        customer_notes:     customer_notes ?? null,
+        pending_until:      pendingUntil.toISOString(),
       })
       .select("*, workshop:workshop_id(name, phone), service:service_id(name_is)")
       .single();
 
     if (error) throw error;
 
-    const workshop = (booking as any).workshop;
-    const service  = (booking as any).service;
-    const dateStr  = new Date(booking.start_time).toLocaleDateString("is-IS", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const workshop = booking.workshop;
+    const service  = booking.service;
+    const dateStr  = formatDate(booking.start_time);
 
-    // SMS to workshop
+    // SMS to workshop owner only
     if (workshop?.phone) {
       await sendSMS(
         workshop.phone,
@@ -45,28 +103,6 @@ export async function POST(req: NextRequest) {
         )
       );
     }
-
-    // SMS to customer
-    if (booking.customer_phone) {
-      await sendSMS(
-        booking.customer_phone,
-        SMS_TEMPLATES.customerBookingReceived(
-          workshop?.name ?? "Verkstæði",
-          service?.name_is ?? booking.service_label ?? "Þjónusta",
-          dateStr
-        )
-      );
-    }
-
-    // Log notification
-    await (supabase as any).from("notifications_log" as any).insert({
-      booking_id: booking.id,
-      recipient_type: "workshop",
-      channel: "sms",
-      message: "New booking notification",
-      status: "sent",
-      sent_at: new Date().toISOString(),
-    });
 
     return NextResponse.json({ booking }, { status: 201 });
   } catch (e: any) {
