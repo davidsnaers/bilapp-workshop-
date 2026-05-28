@@ -10,12 +10,14 @@ const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void }>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
-
-  useEffect(() => {
-    const saved = localStorage.getItem("bilapp-workshop-theme") as Theme | null;
-    if (saved) setTheme(saved);
-  }, []);
+  const [theme, setTheme] = useState<Theme>(() => {
+    // Read from localStorage on initial render (client only)
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("bilapp-workshop-theme") as Theme | null;
+      if (saved === "dark" || saved === "light") return saved;
+    }
+    return "light";
+  });
 
   useEffect(() => {
     const root = document.documentElement;
