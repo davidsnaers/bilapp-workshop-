@@ -2,6 +2,7 @@
 "use client";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useTheme } from "@/components/ThemeProvider";
 import type { Workshop } from "@/types/database";
 import { useState } from "react";
 
@@ -13,55 +14,74 @@ interface Props {
   onSaved: () => void;
 }
 
-function toLocalDatetimeValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T09:00`;
-}
+const HOURS = Array.from({length:14},(_,i)=>i+7); // 07–20
+const MINUTES = [0,15,30,45];
 
 export default function AddBookingModal({ workshop, defaultDate, services, onClose, onSaved }: Props) {
   const supabase = createSupabaseBrowserClient();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
-  const [customerName, setCustomerName] = useState("");
+  const surface = isDark ? "#252525" : "#ffffff";
+  const border  = isDark ? "#2e2e2e" : "#e5e7eb";
+  const text    = isDark ? "#f4f4f4" : "#111827";
+  const muted   = isDark ? "#888"    : "#6b7280";
+  const subsurf = isDark ? "#2e2e2e" : "#f9fafb";
+  const amber   = isDark ? "#E8A800" : "#F5B301";
+
+  // Date
+  const pad = (n: number) => String(n).padStart(2,"0");
+  const defaultDateStr = `${defaultDate.getFullYear()}-${pad(defaultDate.getMonth()+1)}-${pad(defaultDate.getDate())}`;
+
+  const [dateStr, setDateStr]   = useState(defaultDateStr);
+  const [startHour, setStartHour]     = useState(9);
+  const [startMinute, setStartMinute] = useState(0);
+  const [durationHours, setDurationHours]   = useState(1);
+  const [durationMins, setDurationMins]     = useState(0);
+
+  const [customerName, setCustomerName]   = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerPlate, setCustomerPlate] = useState("");
-  const [customerCarMake, setCustomerCarMake] = useState("");
+  const [customerCarMake, setCustomerCarMake]   = useState("");
   const [customerCarModel, setCustomerCarModel] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [serviceLabel, setServiceLabel] = useState("");
-  const [startTime, setStartTime] = useState(toLocalDatetimeValue(defaultDate));
-  const [duration, setDuration] = useState(60);
+  const [serviceLabel, setServiceLabel]   = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string|null>(null);
+
+  const totalDurationMins = durationHours * 60 + durationMins;
+
+  const endHour   = Math.floor((startHour * 60 + startMinute + totalDurationMins) / 60) % 24;
+  const endMin    = (startHour * 60 + startMinute + totalDurationMins) % 60;
+  const endTimeStr = `${pad(endHour)}:${pad(endMin)}`;
 
   const handleServiceChange = (serviceId: string) => {
     setSelectedServiceId(serviceId);
-    const found = services.find((s) => s.service?.id === serviceId);
+    const found = services.find(s => s.service?.id === serviceId);
     if (found?.service) {
-      setDuration(found.service.default_duration_minutes);
+      const mins = found.service.default_duration_minutes;
+      setDurationHours(Math.floor(mins/60));
+      setDurationMins(mins%60);
       setServiceLabel(found.service.name_is);
     }
   };
 
   const handleSave = async () => {
-    if (!startTime) {
-      setError("Tími er nauðsynlegur.");
-      return;
-    }
-
-    setSaving(true);
     setError(null);
-
+    if (!dateStr) { setError("Veldu dagsetningu."); return; }
+    setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Notandi fannst ekki");
 
-      const { error: insertError } = await supabase
+      const startTime = new Date(`${dateStr}T${pad(startHour)}:${pad(startMinute)}:00`);
+
+      const { error: insertError } = await (supabase as any)
         .from("bookings_workshop")
         .insert({
           workshop_id: workshop.id,
-          user_id: null,
-          car_id: null,
+          user_id: null, car_id: null,
           service_id: selectedServiceId || null,
           service_label: serviceLabel || null,
           customer_name: customerName || null,
@@ -69,93 +89,110 @@ export default function AddBookingModal({ workshop, defaultDate, services, onClo
           customer_plate: customerPlate.toUpperCase() || null,
           customer_car_make: customerCarMake || null,
           customer_car_model: customerCarModel || null,
-          start_time: new Date(startTime).toISOString(),
-          duration_minutes: duration,
+          start_time: startTime.toISOString(),
+          duration_minutes: totalDurationMins || 60,
           status: "confirmed",
           source: "manual",
           customer_notes: notes || null,
         });
 
       if (insertError) throw insertError;
-
       onSaved();
-    } catch (e: any) {
+    } catch(e: any) {
       setError(e?.message ?? "Eitthvað fór úrskeiðis");
       setSaving(false);
     }
   };
 
+  const inputStyle = { width:"100%", padding:"9px 12px", borderRadius:10, border:`1px solid ${border}`, background:subsurf, color:text, fontSize:13, outline:"none", boxSizing:"border-box" as const };
+  const selectStyle = { padding:"9px 12px", borderRadius:10, border:`1px solid ${border}`, background:subsurf, color:text, fontSize:13, outline:"none", cursor:"pointer" };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div style={{position:"fixed",inset:0,zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.5)",padding:16}}>
+      <div style={{background:surface,borderRadius:20,border:`1px solid ${border}`,width:"100%",maxWidth:460,maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white">
-          <h2 className="text-lg font-black text-gray-900">Handvirk bókun</h2>
-          <button onClick={onClose}
-            className="h-8 w-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 font-black transition">
-            ✕
-          </button>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:`1px solid ${border}`}}>
+          <h2 style={{fontSize:17,fontWeight:700,margin:0,color:text}}>Handvirk bókun</h2>
+          <button onClick={onClose} style={{width:28,height:28,borderRadius:9,border:`1px solid ${border}`,background:subsurf,color:muted,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
         </div>
 
-        {/* Form */}
-        <div className="px-6 py-5 flex flex-col gap-4">
-          {/* Time — required */}
+        <div style={{overflowY:"auto",flex:1,padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+
+          {/* Date */}
           <div>
-            <label className="block text-xs font-black text-gray-700 uppercase tracking-wide mb-1.5">
-              Tími <span className="text-red-500">*</span>
-            </label>
-            <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" />
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Dagsetning <span style={{color:"#ef4444"}}>*</span></label>
+            <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} style={inputStyle} />
           </div>
 
-          {/* Duration */}
+          {/* Start time — hour + minute dropdowns */}
           <div>
-            <label className="block text-xs font-black text-gray-700 uppercase tracking-wide mb-1.5">Lengd (mínútur)</label>
-            <input type="number" min={15} step={15} value={duration} onChange={(e) => setDuration(Number(e.target.value))}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" />
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Byrjunartími <span style={{color:"#ef4444"}}>*</span></label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <select value={startHour} onChange={e=>setStartHour(Number(e.target.value))} style={selectStyle}>
+                {HOURS.map(h => <option key={h} value={h}>{pad(h)}</option>)}
+              </select>
+              <span style={{color:muted,fontWeight:700}}>:</span>
+              <select value={startMinute} onChange={e=>setStartMinute(Number(e.target.value))} style={selectStyle}>
+                {MINUTES.map(m => <option key={m} value={m}>{pad(m)}</option>)}
+              </select>
+              <span style={{color:muted,fontSize:13,fontWeight:600,whiteSpace:"nowrap"}}>→ {endTimeStr}</span>
+            </div>
+          </div>
+
+          {/* Duration — hours + minutes */}
+          <div>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Lengd</label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <select value={durationHours} onChange={e=>setDurationHours(Number(e.target.value))} style={selectStyle}>
+                  {Array.from({length:9},(_,i)=>i).map(h=><option key={h} value={h}>{h} klst</option>)}
+                </select>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <select value={durationMins} onChange={e=>setDurationMins(Number(e.target.value))} style={selectStyle}>
+                  {MINUTES.map(m=><option key={m} value={m}>{pad(m)} mín</option>)}
+                </select>
+              </div>
+              <span style={{color:amber,fontSize:12,fontWeight:700,whiteSpace:"nowrap"}}>{totalDurationMins} mín</span>
+            </div>
           </div>
 
           {/* Service */}
           <div>
-            <label className="block text-xs font-black text-gray-700 uppercase tracking-wide mb-1.5">Þjónusta</label>
-            <select value={selectedServiceId} onChange={(e) => handleServiceChange(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20">
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Þjónusta</label>
+            <select value={selectedServiceId} onChange={e=>handleServiceChange(e.target.value)} style={{...inputStyle,cursor:"pointer"}}>
               <option value="">Veldu þjónustu...</option>
-              {services.map((s) => s.service && (
+              {services.map(s => s.service && (
                 <option key={s.service.id} value={s.service.id}>{s.service.name_is}</option>
               ))}
             </select>
             {!selectedServiceId && (
-              <input type="text" value={serviceLabel} onChange={(e) => setServiceLabel(e.target.value)}
-                placeholder="Eða skrifaðu þjónustuheiti handvirkt"
-                className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" />
+              <input type="text" value={serviceLabel} onChange={e=>setServiceLabel(e.target.value)} placeholder="Eða skrifaðu þjónustuheiti handvirkt" style={{...inputStyle,marginTop:6}} />
             )}
           </div>
 
-          <div className="border-t border-gray-100 pt-2">
-            <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-3">Viðskiptavinur (valfrjálst)</p>
-            <div className="flex flex-col gap-3">
+          {/* Customer info */}
+          <div style={{borderTop:`1px solid ${border}`,paddingTop:12}}>
+            <p style={{fontSize:10,fontWeight:700,color:muted,textTransform:"uppercase",letterSpacing:"0.5px",margin:"0 0 10px"}}>Viðskiptavinur (valfrjálst)</p>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {[
-                { label: "Nafn", value: customerName, setter: setCustomerName, placeholder: "T.d. Jón Jónsson" },
-                { label: "Símanúmer", value: customerPhone, setter: setCustomerPhone, placeholder: "T.d. 555-1234" },
-                { label: "Bílnúmer", value: customerPlate, setter: setCustomerPlate, placeholder: "T.d. ABC-12" },
-              ].map(({ label, value, setter, placeholder }) => (
+                {label:"Nafn",value:customerName,setter:setCustomerName,placeholder:"T.d. Jón Jónsson"},
+                {label:"Símanúmer",value:customerPhone,setter:setCustomerPhone,placeholder:"T.d. 555-1234"},
+                {label:"Bílnúmer",value:customerPlate,setter:setCustomerPlate,placeholder:"T.d. ABC-12"},
+              ].map(({label,value,setter,placeholder})=>(
                 <div key={label}>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">{label}</label>
-                  <input type="text" value={value} onChange={(e) => setter(e.target.value)} placeholder={placeholder}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20" />
+                  <label style={{display:"block",fontSize:11,fontWeight:600,color:muted,marginBottom:4}}>{label}</label>
+                  <input type="text" value={value} onChange={e=>setter(e.target.value)} placeholder={placeholder} style={inputStyle} />
                 </div>
               ))}
-              <div className="grid grid-cols-2 gap-2">
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Tegund</label>
-                  <input type="text" value={customerCarMake} onChange={(e) => setCustomerCarMake(e.target.value)} placeholder="T.d. Toyota"
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none" />
+                  <label style={{display:"block",fontSize:11,fontWeight:600,color:muted,marginBottom:4}}>Tegund</label>
+                  <input type="text" value={customerCarMake} onChange={e=>setCustomerCarMake(e.target.value)} placeholder="T.d. Toyota" style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Módel</label>
-                  <input type="text" value={customerCarModel} onChange={(e) => setCustomerCarModel(e.target.value)} placeholder="T.d. Corolla"
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none" />
+                  <label style={{display:"block",fontSize:11,fontWeight:600,color:muted,marginBottom:4}}>Módel</label>
+                  <input type="text" value={customerCarModel} onChange={e=>setCustomerCarModel(e.target.value)} placeholder="T.d. Corolla" style={inputStyle} />
                 </div>
               </div>
             </div>
@@ -163,26 +200,18 @@ export default function AddBookingModal({ workshop, defaultDate, services, onClo
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-black text-gray-700 uppercase tracking-wide mb-1.5">Athugasemdir</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
-              placeholder="T.d. Bremsur, 3 klst, mánudagur 9:00"
-              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/20 resize-none" />
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Athugasemdir</label>
+            <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} placeholder="T.d. Bremsur, viðskiptavinur hringdi..." style={{...inputStyle,resize:"none"}} />
           </div>
 
-          {error && (
-            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
-          )}
+          {error && <div style={{padding:"10px 12px",borderRadius:10,background:isDark?"rgba(239,68,68,0.1)":"#fef2f2",border:`1px solid ${isDark?"rgba(239,68,68,0.3)":"#fecaca"}`,color:isDark?"#fca5a5":"#dc2626",fontSize:13,fontWeight:500}}>{error}</div>}
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-6 flex gap-3 sticky bottom-0 bg-white pt-2 border-t border-gray-100">
-          <button onClick={onClose}
-            className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-black text-gray-700 hover:bg-gray-50 transition">
-            Hætta við
-          </button>
-          <button onClick={handleSave} disabled={saving || !startTime}
-            className="flex-1 rounded-xl bg-amber-400 py-3 text-sm font-black text-gray-900 hover:bg-amber-500 transition disabled:opacity-50">
-            {saving ? "Vista..." : "Vista bókun"}
+        <div style={{padding:"12px 20px 16px",borderTop:`1px solid ${border}`,display:"flex",gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:"11px 0",borderRadius:12,border:`1px solid ${border}`,background:"transparent",color:muted,fontSize:13,fontWeight:600,cursor:"pointer"}}>Hætta við</button>
+          <button onClick={handleSave} disabled={saving||!dateStr} style={{flex:2,padding:"11px 0",borderRadius:12,border:"none",background:amber,color:"#111",fontSize:13,fontWeight:700,cursor:"pointer",opacity:saving||!dateStr?0.6:1}}>
+            {saving?"Vista...":"Vista bókun"}
           </button>
         </div>
       </div>

@@ -7,13 +7,7 @@ import type { Workshop } from "@/types/database";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-
-const NAV = [
-  { href: "/calendar",  label: "Dagatal",        icon: "📅" },
-  { href: "/bookings",  label: "Bókanir",         icon: "📋" },
-  { href: "/customers", label: "Viðskiptavinir",  icon: "👤" },
-  { href: "/settings",  label: "Stillingar",      icon: "⚙️" },
-];
+import { useEffect, useState } from "react";
 
 export default function DashboardSidebar({ workshop }: { workshop: Workshop | null }) {
   const pathname = usePathname();
@@ -21,22 +15,52 @@ export default function DashboardSidebar({ workshop }: { workshop: Workshop | nu
   const supabase = createSupabaseBrowserClient();
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === "dark";
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Fetch pending count for badge
+  useEffect(() => {
+    if (!workshop) return;
+    const fetchPending = async () => {
+      const { count } = await (supabase as any)
+        .from("bookings_workshop")
+        .select("*", { count: "exact", head: true })
+        .eq("workshop_id", workshop.id)
+        .eq("status", "pending");
+      setPendingCount(count ?? 0);
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, [workshop]);
+
+  const bg      = isDark ? "#1e1e1e" : "#ffffff";
+  const border  = isDark ? "#2e2e2e" : "#f0e8d8";
+  const text    = isDark ? "#f4f4f4" : "#1a1109";
+  const muted   = isDark ? "#666"    : "#8b7355";
+  const subsurf = isDark ? "#2a2a2a" : "#fffdf8";
+  const hoverBg = isDark ? "#252525" : "#fff8f0";
+  const amber   = isDark ? "#E8A800" : "#F5B301";
+  const activeBg = isDark ? "rgba(232,168,0,0.12)" : "#fff0b8";
+  const activeBorder = isDark ? "#E8A800" : "#F5B301";
+  const activeText = isDark ? "#E8A800" : "#7a4f00";
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     window.location.href = "/login";
   };
 
-  const bg      = isDark ? "#1e1e1e" : "#ffffff";
-  const border  = isDark ? "#2e2e2e" : "#e5e7eb";
-  const text    = isDark ? "#f4f4f4" : "#111827";
-  const muted   = isDark ? "#666"    : "#9ca3af";
-  const subsurf = isDark ? "#2a2a2a" : "#f9fafb";
-  const hoverBg = isDark ? "#2a2a2a" : "#f9fafb";
-  const amber   = isDark ? "#E8A800" : "#F5B301";
-  const activeBg = isDark ? "rgba(232,168,0,0.12)" : "#fffbeb";
-  const activeBorder = isDark ? "#E8A800" : "#fbbf24";
-  const activeText = isDark ? "#E8A800" : "#92400e";
+  const NAV = [
+    { href: "/calendar",  label: "Dagatal",       icon: "📅", badge: 0 },
+    { href: "/bookings?status=pending", label: "Bíður svars", icon: "⚠️", badge: pendingCount, urgent: true },
+    { href: "/bookings",  label: "Bókanir",        icon: "📋", badge: 0 },
+    { href: "/customers", label: "Viðskiptavinir", icon: "👤", badge: 0 },
+    { href: "/settings",  label: "Stillingar",     icon: "⚙️", badge: 0 },
+  ];
+
+  const isActive = (href: string) => {
+    if (href.includes("status=pending")) return pathname === "/bookings" && typeof window !== "undefined" && window.location.search.includes("pending");
+    return pathname.startsWith(href.split("?")[0]) && !href.includes("status=pending");
+  };
 
   return (
     <div style={{ width: 220, flexShrink: 0, background: bg, borderRight: `1px solid ${border}`, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
@@ -58,8 +82,8 @@ export default function DashboardSidebar({ workshop }: { workshop: Workshop | nu
           <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 2px" }}>Verkstæði</p>
           <p style={{ fontSize: 13, fontWeight: 700, color: text, margin: "0 0 3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{workshop.name}</p>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: workshop.status === "active" ? "#22c55e" : "#f59e0b" }} />
-            <span style={{ fontSize: 11, color: muted }}>{workshop.status === "active" ? "Virkt" : "Í bið"}</span>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
+            <span style={{ fontSize: 11, color: muted }}>Virkt</span>
           </div>
         </div>
       )}
@@ -67,19 +91,27 @@ export default function DashboardSidebar({ workshop }: { workshop: Workshop | nu
       {/* Nav */}
       <nav style={{ flex: 1, padding: "8px", display: "flex", flexDirection: "column", gap: 2 }}>
         {NAV.map(item => {
-          const active = pathname.startsWith(item.href);
+          const active = isActive(item.href);
+          const isUrgent = item.urgent && pendingCount > 0;
           return (
             <Link key={item.href} href={item.href} style={{
-              display: "flex", alignItems: "center", gap: 10,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "9px 10px", borderRadius: 10, textDecoration: "none",
               fontSize: 13, fontWeight: active ? 700 : 500,
-              background: active ? activeBg : "transparent",
-              border: `1px solid ${active ? activeBorder : "transparent"}`,
-              color: active ? activeText : isDark ? "#ccc" : "#374151",
+              background: active ? activeBg : isUrgent ? (isDark ? "rgba(239,68,68,0.1)" : "#fef2f2") : "transparent",
+              border: `1px solid ${active ? activeBorder : isUrgent ? (isDark ? "rgba(239,68,68,0.3)" : "#fecaca") : "transparent"}`,
+              color: active ? activeText : isUrgent ? (isDark ? "#fca5a5" : "#991b1b") : isDark ? "#ccc" : "#374151",
               transition: "all 0.15s",
             }}>
-              <span style={{ fontSize: 15 }}>{item.icon}</span>
-              {item.label}
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 15 }}>{item.icon}</span>
+                {item.label}
+              </span>
+              {item.badge > 0 && (
+                <span style={{ background: "#ef4444", color: "white", borderRadius: 999, padding: "1px 7px", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -87,12 +119,7 @@ export default function DashboardSidebar({ workshop }: { workshop: Workshop | nu
 
       {/* Theme + signout */}
       <div style={{ padding: "8px", borderTop: `1px solid ${border}`, display: "flex", flexDirection: "column", gap: 4 }}>
-        <button onClick={toggleTheme} style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "9px 10px", borderRadius: 10, border: `1px solid ${border}`,
-          background: subsurf, color: isDark ? "#ccc" : "#374151",
-          cursor: "pointer", fontSize: 12, fontWeight: 600, width: "100%",
-        }}>
+        <button onClick={toggleTheme} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 10px", borderRadius: 10, border: `1px solid ${border}`, background: subsurf, color: isDark ? "#ccc" : "#374151", cursor: "pointer", fontSize: 12, fontWeight: 600, width: "100%" }}>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 14 }}>{isDark ? "🌙" : "☀️"}</span>
             {isDark ? "Dökkt þema" : "Ljóst þema"}
@@ -101,12 +128,7 @@ export default function DashboardSidebar({ workshop }: { workshop: Workshop | nu
             <div style={{ position: "absolute", top: 2, left: isDark ? 14 : 2, width: 14, height: 14, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
           </div>
         </button>
-
-        <button onClick={handleSignOut} style={{
-          display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 10,
-          border: "1px solid transparent", background: "transparent", color: muted,
-          cursor: "pointer", fontSize: 13, fontWeight: 500, width: "100%",
-        }}>
+        <button onClick={handleSignOut} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 10, border: "1px solid transparent", background: "transparent", color: muted, cursor: "pointer", fontSize: 13, fontWeight: 500, width: "100%" }}>
           <span style={{ fontSize: 15 }}>🚪</span> Útskráning
         </button>
       </div>
