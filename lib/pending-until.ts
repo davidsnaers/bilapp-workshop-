@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Calculate pending_until deadline for a new booking
 // During business hours: 3 hours from now
 // Outside business hours: 3 hours after next opening

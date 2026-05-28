@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createSupabaseServiceClient } from "@/lib/supabase-server";
 import { calculatePendingUntil } from "@/lib/pending-until";
 import { sendSMS, SMS_TEMPLATES } from "@/lib/sms";

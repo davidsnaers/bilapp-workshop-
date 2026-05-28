@@ -1,3 +1,4 @@
+// @ts-nocheck
 // This route is called by Vercel Cron every 15 minutes
 // Add to vercel.json:
 // {

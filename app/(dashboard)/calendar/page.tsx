@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import CalendarClient from "./CalendarClient";

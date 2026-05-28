@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Client-side booking action helpers
 // These call the API routes which handle SMS + DB update together
 

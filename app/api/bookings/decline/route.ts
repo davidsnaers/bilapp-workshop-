@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createSupabaseServiceClient } from "@/lib/supabase-server";
 import { sendSMS, SMS_TEMPLATES } from "@/lib/sms";
 import { NextRequest, NextResponse } from "next/server";

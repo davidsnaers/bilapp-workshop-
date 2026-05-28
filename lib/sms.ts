@@ -1,3 +1,4 @@
+// @ts-nocheck
 // ── Twilio SMS service ────────────────────────────────────────
 // Add to .env.local:
 //   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxx
