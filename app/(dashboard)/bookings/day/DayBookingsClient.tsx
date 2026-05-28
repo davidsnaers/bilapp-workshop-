@@ -2,36 +2,27 @@
 "use client";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useTheme } from "@/components/ThemeProvider";
 import type { BookingWorkshop } from "@/types/database";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-const STATUS_STYLE: Record<string, string> = {
-  pending:               "bg-red-100 border-red-200 text-red-700",
-  confirmed:             "bg-green-100 border-green-200 text-green-700",
-  completed:             "bg-gray-100 border-gray-200 text-gray-500",
-  declined:              "bg-gray-100 border-gray-200 text-gray-400",
-  cancelled_by_user:     "bg-gray-100 border-gray-200 text-gray-400",
-  cancelled_by_workshop: "bg-gray-100 border-gray-200 text-gray-400",
-  auto_cancelled:        "bg-gray-100 border-gray-200 text-gray-400",
-  no_show:               "bg-orange-100 border-orange-200 text-orange-700",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  pending:               "Bíður",
-  confirmed:             "Staðfest",
-  completed:             "Lokið",
-  declined:              "Hafnað",
-  cancelled_by_user:     "Aflýst",
-  cancelled_by_workshop: "Aflýst",
-  auto_cancelled:        "Sjálf-aflýst",
-  no_show:               "Mætti ekki",
-};
+const MONTHS  = ["jan","feb","mar","apr","maí","jún","júl","ágú","sep","okt","nóv","des"];
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
+function formatEndTime(iso: string, mins: number): string {
+  const d = new Date(new Date(iso).getTime() + mins * 60000);
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Bíður", confirmed: "Staðfest", completed: "Lokið",
+  declined: "Hafnað", cancelled_by_user: "Aflýst", cancelled_by_workshop: "Aflýst",
+  auto_cancelled: "Sjálf-aflýst", no_show: "Mætti ekki",
+};
 
 interface Props {
   bookings: (BookingWorkshop & { service?: { name_is: string } | null })[];
@@ -42,6 +33,17 @@ interface Props {
 export default function DayBookingsClient({ bookings, workshopId, dateStr }: Props) {
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  const bg      = isDark ? "#1a1a1a" : "#FFFDF8";
+  const surface = isDark ? "#222222" : "#ffffff";
+  const border  = isDark ? "#2e2e2e" : "#f0e8d8";
+  const text    = isDark ? "#f4f4f4" : "#1a1109";
+  const muted   = isDark ? "#777"    : "#8b7355";
+  const subsurf = isDark ? "#2a2a2a" : "#FFF8F0";
+  const amber   = isDark ? "#E8A800" : "#F5B301";
+  const amberBg = isDark ? "rgba(232,168,0,0.12)" : "#FFF0B8";
 
   const [selected, setSelected] = useState<BookingWorkshop | null>(null);
   const [declineReason, setDeclineReason] = useState("");
@@ -52,171 +54,150 @@ export default function DayBookingsClient({ bookings, workshopId, dateStr }: Pro
     if (!selected) return;
     setActionLoading(true);
     try {
-      let update: Record<string, string> = {};
-      if (action === "confirm") update = { status: "confirmed" };
-      else if (action === "complete") update = { status: "completed" };
-      else if (action === "no_show") update = { status: "no_show" };
-      else if (action === "decline") {
-        if (!declineReason.trim()) { alert("Skrifaðu ástæðu fyrir höfnun."); setActionLoading(false); return; }
-        update = { status: "declined", decline_reason: declineReason };
+      if (action === "confirm") {
+        const res = await fetch("/api/bookings/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ booking_id: selected.id }) });
+        if (!res.ok) throw new Error("Staðfesting mistókst");
+      } else if (action === "decline") {
+        if (!declineReason.trim()) { alert("Skrifaðu ástæðu."); setActionLoading(false); return; }
+        const res = await fetch("/api/bookings/decline", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ booking_id: selected.id, decline_reason: declineReason }) });
+        if (!res.ok) throw new Error("Höfnun mistókst");
+      } else {
+        await (supabase as any).from("bookings_workshop").update({ status: action === "complete" ? "completed" : "no_show" }).eq("id", selected.id);
       }
-      await (supabase as any).from("bookings_workshop").update(update).eq("id", selected.id);
-      setSelected(null);
-      setDeclineReason("");
-      setShowDeclineInput(false);
+      setSelected(null); setDeclineReason(""); setShowDeclineInput(false);
       router.refresh();
-    } finally {
-      setActionLoading(false);
-    }
+    } catch (e: any) { alert(e.message); }
+    finally { setActionLoading(false); }
+  };
+
+  const getStatusStyle = (status: string) => {
+    if (status === "pending")   return { bg: isDark ? "rgba(239,68,68,0.12)"  : "#fef2f2", border: isDark ? "rgba(239,68,68,0.4)"  : "#fecaca", color: isDark ? "#fca5a5" : "#991b1b" };
+    if (status === "confirmed") return { bg: isDark ? "rgba(34,197,94,0.08)"  : "#f0fdf4", border: isDark ? "rgba(34,197,94,0.3)"  : "#86efac", color: isDark ? "#86efac" : "#166534" };
+    if (status === "no_show")   return { bg: isDark ? "rgba(249,115,22,0.1)"  : "#fff7ed", border: isDark ? "rgba(249,115,22,0.3)" : "#fed7aa", color: isDark ? "#fdba74" : "#9a3412" };
+    return { bg: subsurf, border, color: muted };
   };
 
   if (bookings.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-4xl mb-3">📅</p>
-          <p className="font-black text-gray-900 text-lg">Engar bókanir þennan dag</p>
-          <p className="text-sm text-gray-400 mt-1">Þennan dag eru engar bókanir skráðar</p>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: bg }}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 40, margin: "0 0 10px" }}>📅</p>
+          <p style={{ fontWeight: 700, color: text, fontSize: 16, margin: 0 }}>Engar bókanir þennan dag</p>
+          <p style={{ fontSize: 13, color: muted, margin: "4px 0 0" }}>Þennan dag eru engar bókanir skráðar</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-auto px-6 py-4">
-      {/* Timeline */}
-      <div className="flex flex-col gap-3">
-        {bookings.map((booking) => {
-          const endTime = new Date(new Date(booking.start_time).getTime() + booking.duration_minutes * 60000);
-          return (
-            <button key={booking.id} onClick={() => { setSelected(booking); setShowDeclineInput(false); setDeclineReason(""); }}
-              className={`w-full text-left rounded-2xl border p-5 shadow-sm transition hover:border-gray-300 hover:shadow-md ${
-                booking.status === "pending" ? "border-red-200 bg-red-50/30" : "bg-white border-gray-200"
-              }`}>
-              <div className="flex items-start gap-4">
-                {/* Time column */}
-                <div className="text-center shrink-0 w-14">
-                  <p className="text-lg font-black text-gray-900">{formatTime(booking.start_time)}</p>
-                  <p className="text-xs text-gray-400 font-medium">{formatTime(endTime.toISOString())}</p>
-                  <p className="text-xs text-gray-400 mt-1">{booking.duration_minutes}m</p>
-                </div>
+    <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px", background: bg, display: "flex", flexDirection: "column", gap: 10 }}>
+      {bookings.map(booking => {
+        const ss = getStatusStyle(booking.status);
+        return (
+          <button key={booking.id} onClick={() => { setSelected(booking); setShowDeclineInput(false); setDeclineReason(""); }}
+            style={{ textAlign: "left", background: surface, borderRadius: 16, border: `1.5px solid ${booking.status === "pending" ? (isDark ? "rgba(239,68,68,0.4)" : "#fecaca") : border}`, padding: 0, cursor: "pointer", color: text, width: "100%", overflow: "hidden" }}>
 
-                {/* Divider */}
-                <div className="flex flex-col items-center shrink-0">
-                  <div className={`w-3 h-3 rounded-full mt-1 ${
-                    booking.status === "pending" ? "bg-red-400" :
-                    booking.status === "confirmed" ? "bg-green-400" :
-                    booking.status === "completed" ? "bg-gray-300" : "bg-gray-300"
-                  }`} />
-                  <div className="w-0.5 flex-1 bg-gray-100 mt-1" />
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <p className="font-black text-gray-900">{booking.customer_name ?? "Óþekktur"}</p>
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-bold ${STATUS_STYLE[booking.status]}`}>
-                      {STATUS_LABEL[booking.status]}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-500">
-                    {booking.customer_plate && <span>🚗 {booking.customer_plate}</span>}
-                    {booking.customer_phone && <span>📞 {booking.customer_phone}</span>}
-                  </div>
-                  {((booking as any).service?.name_is ?? booking.service_label) && (
-                    <p className="mt-1.5 inline-flex text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-0.5">
-                      {(booking as any).service?.name_is ?? booking.service_label}
-                    </p>
-                  )}
-                  {booking.customer_notes && (
-                    <p className="mt-1.5 text-xs text-gray-400 italic">"{booking.customer_notes}"</p>
-                  )}
+            {/* Time bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: isDark ? "#252525" : "#FFF8F0", borderBottom: `1px solid ${border}` }}>
+              <div style={{ textAlign: "center", minWidth: 50 }}>
+                <p style={{ fontSize: 18, fontWeight: 700, color: amber, margin: 0 }}>{formatTime(booking.start_time)}</p>
+                <p style={{ fontSize: 11, color: muted, margin: 0 }}>–{formatEndTime(booking.start_time, booking.duration_minutes)}</p>
+              </div>
+              <div style={{ width: 2, height: 32, background: isDark ? "#333" : "#e8dcc8", borderRadius: 999 }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 15, fontWeight: 700, color: text, margin: 0 }}>{booking.customer_name ?? "Óþekktur viðskiptavinur"}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", fontSize: 12, color: muted, marginTop: 2 }}>
+                  {booking.customer_plate && <span>🚗 {booking.customer_plate}</span>}
+                  {booking.customer_phone && <span>📞 {booking.customer_phone}</span>}
                 </div>
               </div>
-            </button>
-          );
-        })}
-      </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: ss.bg, border: `1px solid ${ss.border}`, color: ss.color }}>
+                  {STATUS_LABEL[booking.status] ?? booking.status}
+                </span>
+                <span style={{ fontSize: 11, color: muted }}>{booking.duration_minutes} mín</span>
+              </div>
+            </div>
+
+            {/* Service + notes */}
+            <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+              {(booking as any).service?.name_is || booking.service_label ? (
+                <span style={{ padding: "3px 10px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: amberBg, border: `1px solid ${isDark ? "rgba(232,168,0,0.3)" : "#fde68a"}`, color: isDark ? amber : "#7a4f00" }}>
+                  {(booking as any).service?.name_is ?? booking.service_label}
+                </span>
+              ) : null}
+              {booking.customer_notes && (
+                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>"{booking.customer_notes}"</p>
+              )}
+            </div>
+          </button>
+        );
+      })}
 
       {/* Detail modal */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md">
-            <div className="flex items-start justify-between p-6 border-b border-gray-100">
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", padding: 16 }}>
+          <div style={{ background: surface, borderRadius: 20, border: `1px solid ${border}`, width: "100%", maxWidth: 440, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "16px 18px 12px", borderBottom: `1px solid ${border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
-                <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-bold ${STATUS_STYLE[selected.status]}`}>
-                  {STATUS_LABEL[selected.status]}
-                </span>
-                <h2 className="text-xl font-black text-gray-900 mt-1">
-                  {selected.customer_name ?? "Óþekktur viðskiptavinur"}
-                </h2>
+                {(() => { const ss = getStatusStyle(selected.status); return <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: ss.bg, border: `1px solid ${ss.border}`, color: ss.color, marginBottom: 6 }}>{STATUS_LABEL[selected.status]}</span>; })()}
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: text, margin: 0 }}>{selected.customer_name ?? "Óþekktur viðskiptavinur"}</h2>
               </div>
-              <button onClick={() => setSelected(null)}
-                className="h-8 w-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 font-black transition">✕</button>
+              <button onClick={() => setSelected(null)} style={{ width: 28, height: 28, borderRadius: 9, border: `1px solid ${border}`, background: subsurf, color: muted, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
 
-            <div className="p-6 flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
+            <div style={{ overflowY: "auto", flex: 1, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
-                  { label: "Tími", value: `${formatTime(selected.start_time)} – ${formatTime(new Date(new Date(selected.start_time).getTime() + selected.duration_minutes * 60000).toISOString())}` },
-                  { label: "Lengd", value: `${selected.duration_minutes} mínútur` },
+                  { label: "Tími", value: `${formatTime(selected.start_time)} – ${formatEndTime(selected.start_time, selected.duration_minutes)}` },
+                  { label: "Lengd", value: `${selected.duration_minutes} mín` },
                   selected.customer_phone ? { label: "Sími", value: selected.customer_phone } : null,
                   selected.customer_plate ? { label: "Bílnúmer", value: selected.customer_plate } : null,
                   (selected.customer_car_make || selected.customer_car_model) ? { label: "Bíll", value: [selected.customer_car_make, selected.customer_car_model, selected.customer_car_year].filter(Boolean).join(" ") } : null,
                   { label: "Þjónusta", value: (selected as any).service?.name_is ?? selected.service_label ?? "—" },
                 ].filter((x): x is { label: string; value: string } => Boolean(x)).map(({ label, value }) => (
-                  <div key={label} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>
-                    <p className="font-semibold text-gray-900 text-sm">{value}</p>
+                  <div key={label} style={{ background: isDark ? "#2a2a2a" : amberBg, borderRadius: 10, padding: "8px 10px", border: `1px solid ${isDark ? "#333" : "#fde68a44"}` }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 2px" }}>{label}</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: text, margin: 0 }}>{value}</p>
                   </div>
                 ))}
               </div>
 
               {selected.customer_notes && (
-                <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3">
-                  <p className="text-xs font-black text-blue-400 uppercase tracking-wide mb-1">Athugasemdir viðskiptavinar</p>
-                  <p className="text-sm text-blue-800 italic">"{selected.customer_notes}"</p>
+                <div style={{ background: isDark ? "rgba(59,130,246,0.08)" : "#eff6ff", border: `1px solid ${isDark ? "rgba(59,130,246,0.2)" : "#bfdbfe"}`, borderRadius: 10, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: isDark ? "#60a5fa" : "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 4px" }}>Athugasemdir viðskiptavinar</p>
+                  <p style={{ fontSize: 13, color: isDark ? "#93c5fd" : "#1e40af", fontStyle: "italic", margin: 0 }}>"{selected.customer_notes}"</p>
                 </div>
               )}
 
               {showDeclineInput && (
                 <div>
-                  <label className="block text-xs font-black text-gray-700 uppercase tracking-wide mb-1.5">Ástæða höfnunar <span className="text-red-500">*</span></label>
-                  <textarea value={declineReason} onChange={(e) => setDeclineReason(e.target.value)}
-                    rows={3} placeholder="T.d. fullbókað..."
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-medium text-gray-900 focus:border-amber-400 focus:outline-none resize-none" />
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: muted, marginBottom: 6 }}>Ástæða höfnunar *</label>
+                  <textarea value={declineReason} onChange={e => setDeclineReason(e.target.value)} rows={3} placeholder="T.d. fullbókað..." style={{ width: "100%", borderRadius: 10, border: `1px solid ${border}`, background: isDark ? "#1a1a1a" : "white", color: text, padding: "8px 10px", fontSize: 13, resize: "none", boxSizing: "border-box" }} />
                 </div>
               )}
             </div>
 
-            <div className="px-6 pb-6 flex flex-col gap-2">
+            <div style={{ padding: "10px 18px 14px", borderTop: `1px solid ${border}`, display: "flex", flexDirection: "column", gap: 8 }}>
               {selected.status === "pending" && !showDeclineInput && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleAction("confirm")} disabled={actionLoading}
-                    className="flex-1 rounded-xl bg-green-500 py-3 text-sm font-black text-white hover:bg-green-600 transition disabled:opacity-60">✓ Staðfesta</button>
-                  <button onClick={() => setShowDeclineInput(true)}
-                    className="flex-1 rounded-xl border border-red-200 py-3 text-sm font-black text-red-600 hover:bg-red-50 transition">✕ Hafna</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => handleAction("confirm")} disabled={actionLoading} style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: "none", background: "#22c55e", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✓ Staðfesta</button>
+                  <button onClick={() => setShowDeclineInput(true)} style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: `1px solid ${isDark ? "rgba(239,68,68,0.4)" : "#fecaca"}`, background: isDark ? "rgba(239,68,68,0.1)" : "#fef2f2", color: isDark ? "#fca5a5" : "#dc2626", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✕ Hafna</button>
                 </div>
               )}
               {selected.status === "pending" && showDeclineInput && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleAction("decline")} disabled={actionLoading || !declineReason.trim()}
-                    className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-black text-white hover:bg-red-600 transition disabled:opacity-60">
-                    {actionLoading ? "Vista..." : "Senda höfnun"}</button>
-                  <button onClick={() => { setShowDeclineInput(false); setDeclineReason(""); }}
-                    className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-black text-gray-600 hover:bg-gray-50 transition">Hætta við</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => handleAction("decline")} disabled={actionLoading || !declineReason.trim()} style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: "none", background: "#ef4444", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: declineReason.trim() ? 1 : 0.5 }}>{actionLoading ? "Vista..." : "Senda höfnun"}</button>
+                  <button onClick={() => { setShowDeclineInput(false); setDeclineReason(""); }} style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: `1px solid ${border}`, background: "transparent", color: muted, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Hætta við</button>
                 </div>
               )}
               {selected.status === "confirmed" && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleAction("complete")} disabled={actionLoading}
-                    className="flex-1 rounded-xl bg-gray-900 py-3 text-sm font-black text-white hover:bg-gray-800 transition disabled:opacity-60">✓ Merkja sem lokið</button>
-                  <button onClick={() => handleAction("no_show")} disabled={actionLoading}
-                    className="flex-1 rounded-xl border border-orange-200 py-3 text-sm font-black text-orange-600 hover:bg-orange-50 transition disabled:opacity-60">Mætti ekki</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => handleAction("complete")} disabled={actionLoading} style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: "none", background: isDark ? "#333" : "#111", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✓ Merkja sem lokið</button>
+                  <button onClick={() => handleAction("no_show")} disabled={actionLoading} style={{ flex: 1, padding: "10px 0", borderRadius: 12, border: `1px solid ${isDark ? "rgba(249,115,22,0.3)" : "#fed7aa"}`, background: isDark ? "rgba(249,115,22,0.1)" : "#fff7ed", color: isDark ? "#fdba74" : "#9a3412", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Mætti ekki</button>
                 </div>
               )}
-              <button onClick={() => setSelected(null)}
-                className="w-full rounded-xl border border-gray-200 py-2.5 text-sm font-black text-gray-500 hover:bg-gray-50 transition">Loka</button>
+              <button onClick={() => setSelected(null)} style={{ width: "100%", padding: "8px 0", borderRadius: 12, border: `1px solid ${border}`, background: "transparent", color: muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Loka</button>
             </div>
           </div>
         </div>
