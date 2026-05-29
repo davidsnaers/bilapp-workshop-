@@ -18,7 +18,12 @@ function formatDuration(mins: number): string {
   return `${h} klst ${m} mín`;
 }
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
-function isSameDay(a: Date, b: Date) { return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
+function isSameDay(a: Date, b: Date) {
+  // Compare using local date strings to avoid UTC/timezone issues
+  const aStr = `${a.getFullYear()}-${a.getMonth()}-${a.getDate()}`;
+  const bStr = `${b.getFullYear()}-${b.getMonth()}-${b.getDate()}`;
+  return aStr === bStr;
+}
 function startOfMonth(y: number, m: number) { return new Date(y,m,1); }
 function daysInMonth(y: number, m: number) { return new Date(y,m+1,0).getDate(); }
 function mondayFirst(d: Date) { const day=d.getDay(); return day===0?6:day-1; }
@@ -92,9 +97,11 @@ export default function BookingPageClient({
     if (!h || h.is_closed) return "closed";
     if (isBlocked(date)) return "blocked";
 
+    const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
     const dayBookings = bookings.filter(b => {
       const bd = new Date(b.start_time);
-      return isSameDay(bd, date);
+      const bdKey = `${bd.getFullYear()}-${bd.getMonth()}-${bd.getDate()}`;
+      return bdKey === dateKey;
     });
 
     if (workshop.booking_mode === "day_based") {
@@ -188,7 +195,7 @@ export default function BookingPageClient({
         startTime.setHours(selectedSlot.h, selectedSlot.m, 0, 0);
       } else {
         startTime = new Date(selectedDate);
-        startTime.setHours(9, 0, 0, 0);
+        startTime.setHours(12, 0, 0, 0); // noon = timezone safe for day-based
       }
 
       const res = await fetch("/api/bookings/create", {

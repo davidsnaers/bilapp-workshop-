@@ -8,9 +8,11 @@ import { NextRequest, NextResponse } from "next/server";
 const MONTHS_SHORT = ["jan","feb","mar","apr","maí","jún","júl","ágú","sep","okt","nóv","des"];
 const WEEKDAYS_SHORT = ["Sun","Mán","Þri","Mið","Fim","Fös","Lau"];
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, dayBased = false): string {
   const d = new Date(iso);
-  return `${WEEKDAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]} kl. ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  const dateStr = `${WEEKDAYS_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS_SHORT[d.getMonth()]}`;
+  if (dayBased) return `${dateStr} — tími staðfestur af verkstæði`;
+  return `${dateStr} kl. ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -31,27 +33,53 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createSupabaseServiceClient();
 
-    // Check for double booking — same workshop, same time slot, not cancelled
+    // Get workshop booking mode
+    const { data: ws } = await (supabase as any)
+      .from("workshops")
+      .select("booking_mode, max_cars_per_day")
+      .eq("id", workshop_id)
+      .single();
+
+    const isDayBased = ws?.booking_mode === "day_based";
     const slotStart = new Date(start_time);
     const slotEnd   = new Date(slotStart.getTime() + (duration_minutes ?? 60) * 60000);
 
-    const { data: existing } = await (supabase as any)
-      .from("bookings_workshop")
-      .select("id, start_time, duration_minutes")
-      .eq("workshop_id", workshop_id)
-      .not("status", "in", '("declined","cancelled_by_user","cancelled_by_workshop","auto_cancelled")')
-      .gte("start_time", new Date(slotStart.getTime() - (duration_minutes ?? 60) * 60000).toISOString())
-      .lte("start_time", slotEnd.toISOString());
+    if (isDayBased) {
+      // Day-based: check how many bookings exist on this day
+      const dayStart = new Date(slotStart); dayStart.setHours(0,0,0,0);
+      const dayEnd   = new Date(slotStart); dayEnd.setHours(23,59,59,999);
 
-    // Check overlap
-    const overlap = (existing ?? []).some((b: any) => {
-      const bs = new Date(b.start_time).getTime();
-      const be = bs + b.duration_minutes * 60000;
-      return slotStart.getTime() < be && slotEnd.getTime() > bs;
-    });
+      const { count } = await (supabase as any)
+        .from("bookings_workshop")
+        .select("*", { count: "exact", head: true })
+        .eq("workshop_id", workshop_id)
+        .not("status", "in", '("declined","cancelled_by_user","cancelled_by_workshop","auto_cancelled")')
+        .gte("start_time", dayStart.toISOString())
+        .lte("start_time", dayEnd.toISOString());
 
-    if (overlap) {
-      return NextResponse.json({ error: "Þessi tími er þegar bókaður" }, { status: 409 });
+      const maxCars = ws?.max_cars_per_day ?? 5;
+      if ((count ?? 0) >= maxCars) {
+        return NextResponse.json({ error: "Þessi dagur er fullbókaður" }, { status: 409 });
+      }
+    } else {
+      // Time-based: check for slot overlap
+      const { data: existing } = await (supabase as any)
+        .from("bookings_workshop")
+        .select("id, start_time, duration_minutes")
+        .eq("workshop_id", workshop_id)
+        .not("status", "in", '("declined","cancelled_by_user","cancelled_by_workshop","auto_cancelled")')
+        .gte("start_time", new Date(slotStart.getTime() - (duration_minutes ?? 60) * 60000).toISOString())
+        .lte("start_time", slotEnd.toISOString());
+
+      const overlap = (existing ?? []).some((b: any) => {
+        const bs = new Date(b.start_time).getTime();
+        const be = bs + b.duration_minutes * 60000;
+        return slotStart.getTime() < be && slotEnd.getTime() > bs;
+      });
+
+      if (overlap) {
+        return NextResponse.json({ error: "Þessi tími er þegar bókaður" }, { status: 409 });
+      }
     }
 
     // Get workshop hours for pending_until
@@ -108,12 +136,14 @@ export async function POST(req: NextRequest) {
 
     // Email to customer if they provided an email (web bookings)
     if (booking.customer_email) {
+      const emailDateStr = formatDate(booking.start_time, isDayBased);
+
       const { subject, html } = emailBookingReceived({
         customerName: booking.customer_name ?? "Viðskiptavinur",
         workshopName: workshop?.name ?? "Verkstæðið",
         serviceName:  service?.name_is ?? booking.service_label ?? "Þjónusta",
-        dateStr,
-        plate:        booking.customer_plate ?? "—",
+        dateStr: emailDateStr,
+        plate:   booking.customer_plate ?? "—",
       });
       await sendEmail(booking.customer_email, subject, html);
     }

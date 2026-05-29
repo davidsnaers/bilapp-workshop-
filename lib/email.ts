@@ -41,8 +41,9 @@ export function emailBookingReceived(params: {
   serviceName: string;
   dateStr: string;
   plate: string;
+  isDayBased?: boolean;
 }): { subject: string; html: string } {
-  const { customerName, workshopName, serviceName, dateStr, plate } = params;
+  const { customerName, workshopName, serviceName, dateStr, plate, isDayBased } = params;
 
   return {
     subject: `Bókun móttekin — ${workshopName}`,
@@ -81,7 +82,7 @@ export function emailBookingReceived(params: {
       <div style="background:#FFFDF8;border:1px solid #f0e8d8;border-radius:14px;padding:16px;margin-bottom:24px">
         ${[
           ["🔧 Þjónusta", serviceName],
-          ["📅 Dagsetning", dateStr],
+          ["📅 Dagsetning", isDayBased ? dateStr.split(" kl.")[0] + " — tími staðfestur af verkstæði" : dateStr],
           ["🚗 Bílnúmer", plate],
         ].map(([label, value]) => `
           <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e8d8">
