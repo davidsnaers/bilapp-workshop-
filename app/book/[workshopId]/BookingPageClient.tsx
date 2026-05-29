@@ -90,11 +90,19 @@ export default function BookingPageClient({
     const h = getHoursForDay(date);
     if (!h || h.is_closed) return "closed";
     if (isBlocked(date)) return "blocked";
-    const dayBookings = bookings.filter(b => isSameDay(new Date(b.start_time), date));
+
+    const dayBookings = bookings.filter(b => {
+      const bd = new Date(b.start_time);
+      return isSameDay(bd, date);
+    });
+
     if (workshop.booking_mode === "day_based") {
+      // Day-based — only full if max_cars_per_day reached
       return dayBookings.length >= workshop.max_cars_per_day ? "full" : "available";
+    } else {
+      // Time-based — full if no slots left
+      return getSlots(date, dayBookings, h).length === 0 ? "full" : "available";
     }
-    return getSlots(date, dayBookings, h).length === 0 ? "full" : "available";
   };
 
   const getSlots = (date: Date, dayBookings: any[], h: any) => {
@@ -151,7 +159,10 @@ export default function BookingPageClient({
     if (status !== "available") return;
     setSelectedDate(date);
     setSelectedSlot(null);
-    if (workshop.booking_mode === "day_based") setStep("details");
+    if (workshop.booking_mode === "day_based") {
+      setStep("details"); // skip slot picking, go straight to details
+    }
+    // time_based — wait for slot selection below
   };
 
   const handleSlotClick = (slot: {h:number;m:number}) => {
@@ -214,7 +225,17 @@ export default function BookingPageClient({
     const d   = selectedDate.getDate();
     const m   = MONTHS_SHORT_IS[selectedDate.getMonth()];
     if (selectedSlot) return `${day} ${d}. ${m} kl. ${pad(selectedSlot.h)}:${pad(selectedSlot.m)}`;
+    // Day-based — no time shown
     return `${day} ${d}. ${m}`;
+  };
+
+  const formatSelectedDateConfirm = () => {
+    if (!selectedDate) return "";
+    const day = WEEKDAYS_LONG_IS[selectedDate.getDay()];
+    const d   = selectedDate.getDate();
+    const m   = MONTHS_SHORT_IS[selectedDate.getMonth()];
+    if (selectedSlot) return `${day} ${d}. ${m} kl. ${pad(selectedSlot.h)}:${pad(selectedSlot.m)}`;
+    return lang === "is" ? `${day} ${d}. ${m} — tími staðfestur af verkstæði` : `${day} ${d}. ${m} — time set by workshop`;
   };
 
   const isDark = false; // public page is always light
@@ -327,10 +348,14 @@ export default function BookingPageClient({
 
             <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 6px", color: text }}>
               {lang==="is" ? "Veldu dag" : "Choose a day"}
-              {workshop.booking_mode === "time_based" && (lang==="is" ? " og tíma" : " and time")}
             </h1>
             <p style={{ fontSize: 13, color: muted, margin: "0 0 20px" }}>
-              {selectedService?.name_is ?? ""} · {selectedService?.default_duration_minutes} {lang==="is"?"mín":"min"}
+              {selectedService?.name_is ?? ""} · {formatDuration(selectedService?.default_duration_minutes ?? 60)}
+              {workshop.booking_mode === "day_based" && (
+                <span style={{ display: "block", marginTop: 6, padding: "6px 10px", borderRadius: 8, background: "#FFF0B8", border: "1px solid #fde68a", color: "#7a4f00", fontWeight: 600 }}>
+                  {lang==="is" ? "⏰ Verkstæðið ákveður nákvæman tíma þegar þú færð staðfestingu" : "⏰ The workshop will set the exact time when confirming"}
+                </span>
+              )}
             </p>
 
             {/* Calendar */}
@@ -503,7 +528,7 @@ export default function BookingPageClient({
             <div style={{ background:surface,borderRadius:16,border:`1px solid ${border}`,padding:16,textAlign:"left",marginBottom:20 }}>
               {[
                 {label:lang==="is"?"Þjónusta":"Service",value:selectedService?.name_is},
-                {label:lang==="is"?"Dagsetning":"Date",value:formatSelectedDate()},
+                {label:lang==="is"?"Dagsetning":"Date",value:formatSelectedDateConfirm()},
                 {label:lang==="is"?"Nafn":"Name",value:name},
                 {label:lang==="is"?"Sími":"Phone",value:phone},
                 ...(plate?[{label:lang==="is"?"Bílnúmer":"Plate",value:plate}]:[]),
