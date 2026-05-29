@@ -475,7 +475,8 @@ export default function BookingPageClient({
               {[
                 {label:lang==="is"?"Nafn *":"Name *",value:name,setter:setName,placeholder:lang==="is"?"Fullt nafn":"Full name"},
                 {label:lang==="is"?"Símanúmer *":"Phone *",value:phone,setter:setPhone,placeholder:"778-1009",type:"tel"},
-                {label:lang==="is"?"Bílnúmer":"Plate",value:plate,setter:setPlate,placeholder:"ABC-12"},
+                {label:lang==="is"?"Netfang *":"Email *",value:email,setter:setEmail,placeholder:"nafn@daemi.is",type:"email"},
+                {label:lang==="is"?"Bílnúmer *":"Plate *",value:plate,setter:setPlate,placeholder:"ABC-12"},
               ].map(({label,value,setter,placeholder,type})=>(
                 <div key={label}>
                   <label style={{ display:"block",fontSize:12,fontWeight:700,color:muted,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px" }}>{label}</label>
@@ -536,6 +537,7 @@ export default function BookingPageClient({
                 {label:lang==="is"?"Dagsetning":"Date",value:formatSelectedDateConfirm()},
                 {label:lang==="is"?"Nafn":"Name",value:name},
                 {label:lang==="is"?"Sími":"Phone",value:phone},
+                {label:lang==="is"?"Netfang":"Email",value:email},
                 {label:lang==="is"?"Bílnúmer":"Plate",value:plate},
               ].map(({label,value})=>(
                 <div key={label} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}` }}>
