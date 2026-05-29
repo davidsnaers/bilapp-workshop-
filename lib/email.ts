@@ -5,7 +5,7 @@
 // Set FROM_EMAIL to your verified domain email e.g. bókanir@bilapp.is
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL     = process.env.FROM_EMAIL ?? "bókanir@bilapp.is";
+const FROM_EMAIL     = process.env.FROM_EMAIL ?? "Bílapp <onboarding@resend.dev>";
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   if (!RESEND_API_KEY) {
