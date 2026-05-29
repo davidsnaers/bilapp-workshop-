@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createSupabaseServiceClient();
 
-    const { data: booking, error } = await supabase
-      .from("bookings_workshop" as any)
+    const { data: booking, error } = await (supabase as any)
+      .from("bookings_workshop")
       .update({ status: "declined", decline_reason, pending_until: null })
       .eq("id", booking_id)
       .select("*, workshop:workshop_id(name, phone), service:service_id(name_is)")
@@ -21,37 +21,29 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
 
-    const workshop = (booking as any).workshop;
+    // Non-critical notifications — never crash the response
+    try {
+      const workshop = booking.workshop;
+      const service  = booking.service;
 
-    console.log("[decline] booking", booking_id, "customer_phone:", booking.customer_phone);
+      if (booking.customer_phone) {
+        await sendSMS(
+          booking.customer_phone,
+          SMS_TEMPLATES.customerDeclined(workshop?.name ?? "Verkstæðið", decline_reason)
+        );
+      }
 
-    if (booking.customer_phone) {
-      const sent = await sendSMS(
-        booking.customer_phone,
-        SMS_TEMPLATES.customerDeclined(
-          workshop?.name ?? "Verkstæðið",
-          decline_reason
-        )
-      );
-      console.log("[decline] SMS sent:", sent);
-    }
-
-    await (supabase as any).from("booking_events" as any).insert({
-      workshop_booking_id: booking_id,
-      event_type: "declined",
-      actor_type: "workshop",
-      metadata: { decline_reason },
-    }); } catch (_) {}
-
-    // Email to customer if they have an email (web bookings)
-    if (booking.customer_email) {
-      const { subject, html } = emailBookingDeclined({
-        customerName: booking.customer_name ?? "Viðskiptavinur",
-        workshopName: workshop?.name ?? "Verkstæðið",
-        serviceName:  service?.name_is ?? booking.service_label ?? "Þjónusta",
-        reason:       decline_reason,
-      });
-      await sendEmail(booking.customer_email, subject, html);
+      if (booking.customer_email) {
+        const { subject, html } = emailBookingDeclined({
+          customerName: booking.customer_name ?? "Viðskiptavinur",
+          workshopName: workshop?.name ?? "Verkstæðið",
+          serviceName:  service?.name_is ?? booking.service_label ?? "Þjónusta",
+          reason:       decline_reason,
+        });
+        await sendEmail(booking.customer_email, subject, html);
+      }
+    } catch (notifError: any) {
+      console.warn("[decline] notification failed:", notifError?.message);
     }
 
     return NextResponse.json({ ok: true, booking });
