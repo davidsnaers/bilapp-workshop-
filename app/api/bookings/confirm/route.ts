@@ -50,13 +50,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Log event
-    await (supabase as any).from("booking_events").insert({
-      workshop_booking_id: booking_id,
-      event_type: "confirmed",
-      actor_type: "workshop",
-      metadata: confirmed_time ? { confirmed_time } : null,
-    });
+    // Log event (non-critical — ignore errors)
+    try {
+      await (supabase as any).from("booking_events").insert({
+        workshop_booking_id: booking_id,
+        event_type: "confirmed",
+        actor_type: "workshop",
+        metadata: confirmed_time ? { confirmed_time } : null,
+      });
+    } catch (_) {}
 
     // Email to customer if they have an email (web bookings)
     if (booking.customer_email) {

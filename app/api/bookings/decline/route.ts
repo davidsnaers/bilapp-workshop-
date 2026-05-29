@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       event_type: "declined",
       actor_type: "workshop",
       metadata: { decline_reason },
-    });
+    }); } catch (_) {}
 
     // Email to customer if they have an email (web bookings)
     if (booking.customer_email) {
