@@ -10,6 +10,13 @@ const WEEKDAYS_IS = ["Su","Má","Þr","Mi","Fi","Fö","La"];
 const WEEKDAYS_LONG_IS = ["Sunnudagur","Mánudagur","Þriðjudagur","Miðvikudagur","Fimmtudagur","Föstudagur","Laugardagur"];
 
 function pad(n: number) { return String(n).padStart(2,"0"); }
+function formatDuration(mins: number): string {
+  if (mins < 60) return `${mins} mín`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (m === 0) return `${h} klst`;
+  return `${h} klst ${m} mín`;
+}
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
 function isSameDay(a: Date, b: Date) { return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
 function startOfMonth(y: number, m: number) { return new Date(y,m,1); }
@@ -290,7 +297,7 @@ export default function BookingPageClient({
                         {lang==="is" ? s.name_is : (s.name_en || s.name_is)}
                       </p>
                       <p style={{ fontSize: 12, color: muted, margin: "3px 0 0" }}>
-                        {s.default_duration_minutes} {lang==="is" ? "mínútur" : "minutes"}
+                        {formatDuration(s.default_duration_minutes)}
                       </p>
                     </div>
                     <div style={{ width: 22, height: 22, borderRadius: "50%", border: `2px solid ${sel?amber:border}`, background: sel?amber:"transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
