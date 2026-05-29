@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createSupabaseServiceClient } from "@/lib/supabase-server";
 import { sendSMS, SMS_TEMPLATES } from "@/lib/sms";
+import { sendEmail, emailBookingConfirmed } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 
 const MONTHS_SHORT  = ["jan","feb","mar","apr","maí","jún","júl","ágú","sep","okt","nóv","des"];
@@ -56,6 +57,19 @@ export async function POST(req: NextRequest) {
       actor_type: "workshop",
       metadata: confirmed_time ? { confirmed_time } : null,
     });
+
+    // Email to customer if they have an email (web bookings)
+    if (booking.customer_email) {
+      const { subject, html } = emailBookingConfirmed({
+        customerName:  booking.customer_name ?? "Viðskiptavinur",
+        workshopName:  workshop?.name ?? "Verkstæðið",
+        workshopPhone: workshop?.phone ?? "",
+        serviceName:   service?.name_is ?? booking.service_label ?? "Þjónusta",
+        dateStr,
+        plate:         booking.customer_plate ?? "—",
+      });
+      await sendEmail(booking.customer_email, subject, html);
+    }
 
     return NextResponse.json({ ok: true, booking });
   } catch (e: any) {

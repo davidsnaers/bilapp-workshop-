@@ -46,6 +46,7 @@ export default function BookingPageClient({
   const [name, setName]   = useState("");
   const [phone, setPhone] = useState("");
   const [plate, setPlate] = useState("");
+  const [email, setEmail] = useState("");
   const [carMake, setCarMake]   = useState("");
   const [carModel, setCarModel] = useState("");
   const [notes, setNotes] = useState("");
@@ -171,9 +172,11 @@ export default function BookingPageClient({
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) { setError("Skráðu nafn"); return; }
-    if (!phone.trim()) { setError("Skráðu símanúmer"); return; }
-    if (!selectedDate) { setError("Veldu dagsetningu"); return; }
+    if (!name.trim()) { setError(lang==="is"?"Skráðu nafn":"Enter your name"); return; }
+    if (!phone.trim()) { setError(lang==="is"?"Skráðu símanúmer":"Enter your phone number"); return; }
+    if (!email.trim() || !email.includes("@")) { setError(lang==="is"?"Skráðu gilt netfang":"Enter a valid email"); return; }
+    if (!plate.trim()) { setError(lang==="is"?"Skráðu bílnúmer":"Enter license plate"); return; }
+    if (!selectedDate) { setError(lang==="is"?"Veldu dagsetningu":"Choose a date"); return; }
 
     setError(null);
     setSubmitting(true);
@@ -197,7 +200,9 @@ export default function BookingPageClient({
           service_label:      selectedService?.name_is ?? null,
           customer_name:      name.trim(),
           customer_phone:     phone.trim(),
-          customer_plate:     plate.toUpperCase() || null,
+          customer_email:     email.trim() || null,
+          customer_plate:     plate.toUpperCase(),
+
           customer_car_make:  carMake || null,
           customer_car_model: carModel || null,
           start_time:         startTime.toISOString(),
@@ -531,7 +536,7 @@ export default function BookingPageClient({
                 {label:lang==="is"?"Dagsetning":"Date",value:formatSelectedDateConfirm()},
                 {label:lang==="is"?"Nafn":"Name",value:name},
                 {label:lang==="is"?"Sími":"Phone",value:phone},
-                ...(plate?[{label:lang==="is"?"Bílnúmer":"Plate",value:plate}]:[]),
+                {label:lang==="is"?"Bílnúmer":"Plate",value:plate},
               ].map(({label,value})=>(
                 <div key={label} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}` }}>
                   <span style={{ fontSize:13,color:muted,fontWeight:600 }}>{label}</span>
@@ -539,7 +544,7 @@ export default function BookingPageClient({
                 </div>
               ))}
             </div>
-            <button onClick={() => { setStep("service"); setSelectedService(null); setSelectedDate(null); setSelectedSlot(null); setName(""); setPhone(""); setPlate(""); setNotes(""); setCarMake(""); setCarModel(""); }} style={{
+            <button onClick={() => { setStep("service"); setSelectedService(null); setSelectedDate(null); setSelectedSlot(null); setName(""); setPhone(""); setEmail(""); setPlate(""); setNotes(""); setCarMake(""); setCarModel(""); }} style={{
               padding:"12px 28px",borderRadius:12,border:`1px solid ${border}`,background:surface,color:text,fontSize:14,fontWeight:600,cursor:"pointer",
             }}>
               {lang==="is"?"Bóka aftur":"Book again"}

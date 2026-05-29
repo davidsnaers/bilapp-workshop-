@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createSupabaseServiceClient } from "@/lib/supabase-server";
 import { sendSMS, SMS_TEMPLATES } from "@/lib/sms";
+import { sendEmail, emailBookingDeclined } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -41,6 +42,17 @@ export async function POST(req: NextRequest) {
       actor_type: "workshop",
       metadata: { decline_reason },
     });
+
+    // Email to customer if they have an email (web bookings)
+    if (booking.customer_email) {
+      const { subject, html } = emailBookingDeclined({
+        customerName: booking.customer_name ?? "Viðskiptavinur",
+        workshopName: workshop?.name ?? "Verkstæðið",
+        serviceName:  service?.name_is ?? booking.service_label ?? "Þjónusta",
+        reason:       decline_reason,
+      });
+      await sendEmail(booking.customer_email, subject, html);
+    }
 
     return NextResponse.json({ ok: true, booking });
   } catch (e: any) {

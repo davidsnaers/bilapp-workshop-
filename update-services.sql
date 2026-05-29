@@ -18,3 +18,7 @@ CREATE POLICY "workshop_blocks_read_authenticated" ON public.workshop_blocks
 -- Add custom duration override to workshop_services
 ALTER TABLE public.workshop_services 
   ADD COLUMN IF NOT EXISTS custom_duration_minutes integer;
+
+-- Add customer_email to bookings_workshop
+ALTER TABLE public.bookings_workshop
+  ADD COLUMN IF NOT EXISTS customer_email text;

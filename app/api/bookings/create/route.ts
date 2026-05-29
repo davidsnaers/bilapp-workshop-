@@ -2,6 +2,7 @@
 import { createSupabaseServiceClient } from "@/lib/supabase-server";
 import { calculatePendingUntil } from "@/lib/pending-until";
 import { sendSMS, SMS_TEMPLATES } from "@/lib/sms";
+import { sendEmail, emailBookingReceived } from "@/lib/email";
 import { NextRequest, NextResponse } from "next/server";
 
 const MONTHS_SHORT = ["jan","feb","mar","apr","maí","jún","júl","ágú","sep","okt","nóv","des"];
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
         duration_minutes:   duration_minutes ?? 60,
         status:             "pending",
         source:             source ?? "web",
+        customer_email:     body.customer_email ?? null,
         customer_notes:     customer_notes ?? null,
         pending_until:      pendingUntil.toISOString(),
       })
@@ -102,6 +104,18 @@ export async function POST(req: NextRequest) {
           dateStr
         )
       );
+    }
+
+    // Email to customer if they provided an email (web bookings)
+    if (booking.customer_email) {
+      const { subject, html } = emailBookingReceived({
+        customerName: booking.customer_name ?? "Viðskiptavinur",
+        workshopName: workshop?.name ?? "Verkstæðið",
+        serviceName:  service?.name_is ?? booking.service_label ?? "Þjónusta",
+        dateStr,
+        plate:        booking.customer_plate ?? "—",
+      });
+      await sendEmail(booking.customer_email, subject, html);
     }
 
     return NextResponse.json({ booking }, { status: 201 });
