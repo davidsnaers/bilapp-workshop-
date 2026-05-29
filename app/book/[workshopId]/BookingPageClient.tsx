@@ -6,7 +6,7 @@ import { useState, useMemo } from "react";
 
 const MONTHS_IS = ["Janúar","Febrúar","Mars","Apríl","Maí","Júní","Júlí","Ágúst","September","Október","Nóvember","Desember"];
 const MONTHS_SHORT_IS = ["jan","feb","mar","apr","maí","jún","júl","ágú","sep","okt","nóv","des"];
-const WEEKDAYS_IS = ["Su","Má","Þr","Mi","Fi","Fö","La"];
+const WEEKDAYS_IS = ["Má","Þr","Mi","Fi","Fö","La","Su"];
 const WEEKDAYS_LONG_IS = ["Sunnudagur","Mánudagur","Þriðjudagur","Miðvikudagur","Fimmtudagur","Föstudagur","Laugardagur"];
 
 function pad(n: number) { return String(n).padStart(2,"0"); }
